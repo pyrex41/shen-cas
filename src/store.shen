@@ -110,7 +110,9 @@
   _ -> (error "sym-name: not a sym"))
 
 (define headed-by-sym?
-  S X -> (and (sym? X) (= (hd (tl X)) S)))
+  S X -> (and (cons? X)
+              (let Hd (hd X)
+                (and (sym? Hd) (= (sym-name Hd) S)))))
 
 \\ Return list of content-hash values for args, with Flat inlining and Orderless sorting applied when sig present.
 (define canonical-arg-hashes

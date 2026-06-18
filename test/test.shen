@@ -148,8 +148,8 @@
 \\   golden/arith-21.4.txt (no-op cases like symbols and [x / x] are explicit idempotence tests; REJECTs).
 
 (define phase1-explicit-bindings-cover-examples
-  _ -> (let R1 (rule [(sym Plus) (int 0) (named x (blank))] (named x (blank)))
-            R2 (rule [(sym Plus) (named x (blank)) (int 0)] (named x (blank)))
+  _ -> (let R1 (rule [(sym Plus) (int 0) (named x (blank))] (sym x))
+            R2 (rule [(sym Plus) (named x (blank)) (int 0)] (sym x))
             C1 (bindings-cover? (rule-lhs R1) (rule-rhs R1))
             C2 (bindings-cover? (rule-lhs R2) (rule-rhs R2))
             BadCov (bindings-cover? (named x (blank)) (sym y))  \\ y not bound and not known global
@@ -159,26 +159,26 @@
                 (and C1 C2 (not BadCov)))))
 
 (define phase1-use-register-reduce
-  _ -> (do (register-rule (rule [(sym Plus) (int 0) (named x (blank))] (named x (blank))))
-           (register-rule (rule [(sym Plus) (named x (blank)) (int 0)] (named x (blank))))
+  _ -> (do (register-rule (rule [(sym Plus) (int 0) (named x (blank))] (sym x)))
+           (register-rule (rule [(sym Plus) (named x (blank)) (int 0)] (sym x)))
            (let E [(sym Plus) (int 2) (int 0)]
                 Got (reduce E)
                 (do (output "Phase1: used register-rule + reduce: ~A -> ~A~%" E Got)
-                    true))))
+                    (content-eq Got (int 2))))))
 
 (define phase1-content-hash-sharing-orderless-flat
-  _ -> (let _ (if (get-structural-sig Plus)
+  _ -> (let _ (if (get-structural-sig (protect Plus))
                   true
-                  (declare-structural Plus [orderless flat]))
-            E1 [(sym Plus) (int 1) (int 2)]
-            E2 [(sym Plus) (int 2) (int 1)]
+                  (declare-structural (protect Plus) [(protect orderless) (protect flat)]))
+            E1 (compound (sym (protect Plus)) [(int 1) (int 2)])
+            E2 (compound (sym (protect Plus)) [(int 2) (int 1)])
             H1 (content-hash E1)
             H2 (content-hash E2)
             Eq (content-eq E1 E2)
             (do (output "Phase1: declared Plus orderless+flat (store sig path via attrs)~%")
                 (output "Phase1: content-hash sharing for Orderless? ~A (h1=~A h2=~A)~%" Eq H1 H2)
-                (let F1 [(sym Plus) [(sym Plus) (int 1) (int 2)] (int 3)]
-                     F2 [(sym Plus) (int 1) [(sym Plus) (int 2) (int 3)]]
+                (let F1 (compound (sym (protect Plus)) [(compound (sym (protect Plus)) [(int 1) (int 2)]) (int 3)])
+                     F2 (compound (sym (protect Plus)) [(int 1) (compound (sym (protect Plus)) [(int 2) (int 3)])])
                      Feq (content-eq F1 F2)
                      (do (output "Phase1: content-hash sharing for Flat nested? ~A~%" Feq)
                          (and Eq Feq))))))
