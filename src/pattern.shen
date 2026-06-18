@@ -60,9 +60,9 @@
 
 \\ Reserved pattern heads (distinct from expr symbols so (Pattern ...) etc. can't be confused with literal exprs)
 (define blank      _   -> (blank))
-(define blank-seq  _   -> (blank-seq))
-(define blank-null _   -> (blank-null-seq))
-(define named      N P -> (named N P))
+(define blank-seq  _   -> blank-seq)     ; return the symbol tag (fixed non-recursive)
+(define blank-null _   -> blank-null-seq)
+(define named      N P -> (list 'named N P))  ; explicit tag list for named (to support seq sub)
 (define condition  P T -> (condition P T))
 (define ptest      P F -> (ptest P F))
 (define alt        P1 P2 -> (alt P1 P2))
@@ -73,7 +73,8 @@
 \\ --- Binding extraction (stub for Phase 1, sufficient for bindings-cover) ---
 
 (define extract-bindings
-  (named Name _) -> [Name]
+  [(list 'named) Name _] -> [Name]   ; updated for list tag ctor
+  (named Name _) -> [Name]           ; keep for compatibility
   [H | Args] -> (append (extract-bindings H)
                         (mapcan (fn extract-bindings) (filter pattern? Args)))
   _ -> [])
@@ -83,7 +84,7 @@
 
 (define blank? (blank) -> true ; _ -> false)
 (define blank-typed? [(blank) _] -> true ; _ -> false)   \\ simplistic
-(define named? [(named) _ _] -> true ; _ -> false)
+(define named? [(list 'named) _ _] -> true ; _ -> false)  ; updated for list tag
 (define compound-pattern? [H | _] -> (and (pattern? H) true) where (not (symbol? H)) ; _ -> false)
 (define condition? [(condition) _ _] -> true ; _ -> false)
 (define ptest? [(ptest) _ _] -> true ; _ -> false)

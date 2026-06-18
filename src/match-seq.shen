@@ -15,46 +15,42 @@
 (define match-args-with-sequences
   \\ Use Shen's Prolog subsystem for nondeterministic splitting (per sketch)
   PatArgs ExprArgs ->
-      (prolog?
-          (match-arg-list PatArgs ExprArgs Bindings)
-          (return Bindings)))
+      (prolog? (prolog-match-arg-list PatArgs ExprArgs [])))  ; returns the (some Bindings) from base return
 
-(defprolog match-arg-list
-    \\ Base case: empty pattern matches empty args
-    [] [] Bindings <-- (return (some Bindings));
+(defprolog prolog-match-arg-list
+    \\ Base case: empty pattern matches empty args; return the accumulated bindings
+    [] [] Acc <-- (return (some Acc));
 
-    \\ Sequence pattern (one or more): try all splits
-    [(blank-seq) | PRest] EArgs Bindings <--
+    \\ Sequence pattern (one or more): try all splits, pass acc unchanged (no binding for unnamed seq)
+    [(blank-seq) | PRest] EArgs Acc <--
         (split EArgs Front Back)
         (when (not (= Front [])))   \\ at least one element
-        (match-arg-list PRest Back Bindings2)
-        (return (some (append Bindings Bindings2)));
+        (prolog-match-arg-list PRest Back Acc);
 
     \\ Null sequence: zero or more allowed
-    [(blank-null-seq) | PRest] EArgs Bindings <--
+    [(blank-null-seq) | PRest] EArgs Acc <--
         (split EArgs Front Back)
-        (match-arg-list PRest Back Bindings2)
-        (return (some (append Bindings Bindings2)));
+        (prolog-match-arg-list PRest Back Acc);
 
-    \\ Named sequence var (blank-seq)
-    [(named Name (blank-seq)) | PRest] EArgs Bindings <--
+    \\ Named sequence var (blank-seq): consume, add binding to acc, delegate
+    [(named Name (blank-seq)) | PRest] EArgs Acc <--
         (split EArgs Front Back)
         (when (not (= Front [])))
-        (match-arg-list PRest Back Bindings2)
-        (return (some [(Name Front) | (append Bindings Bindings2)]));
+        (is NewAcc (append Acc [[Name Front]]))
+        (prolog-match-arg-list PRest Back NewAcc);
 
     \\ Named sequence var (blank-null-seq)
-    [(named Name (blank-null-seq)) | PRest] EArgs Bindings <--
+    [(named Name (blank-null-seq)) | PRest] EArgs Acc <--
         (split EArgs Front Back)
-        (match-arg-list PRest Back Bindings2)
-        (return (some [(Name Front) | (append Bindings Bindings2)]));
+        (is NewAcc (append Acc [[Name Front]]))
+        (prolog-match-arg-list PRest Back NewAcc);
 
-    \\ Normal (non-seq) pattern element: delegate to first-order match
-    [P | PRest] [E | ERest] Bindings <--
+    \\ Normal (non-seq) pattern element: delegate to first-order match, append its bindings
+    [P | PRest] [E | ERest] Acc <--
         (is Result (match P E))
         (when (some? Result))
-        (match-arg-list PRest ERest
-            (append Bindings (unwrap Result)));
+        (is NewAcc (append Acc (unwrap Result)))
+        (prolog-match-arg-list PRest ERest NewAcc);
 
     \\ no more clauses: implicit failure (prolog? will not return a value)
 )
@@ -68,7 +64,7 @@
 
 \\ Light integration point: override the first-order match-arg-list (defined in match.shen)
 \\ with the Prolog-backed version that handles seq patterns.
-\\ (Prolog version delegates non-seq cases back to (match).)
+\\ Use internal prolog name to avoid arity clash.
 (define match-arg-list
   [] [] -> (some [])
   PArgs EArgs ->
