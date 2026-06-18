@@ -580,12 +580,75 @@
                     (let R (ms-remove X Ys)
                          (if (= R [notfound]) [notfound] [Y | R]))))
 
+\\ === SCUD 21 Wave 5: bounded symbolic integration ===
+\\ Acceptance: Integrate[x^2,x]->x^3/3 (exact rational); Integrate[x^-1,x]->Log[x];
+\\ Integrate[Sin[x],x]->-Cos[x]; Integrate[2x+3,x]->x^2+3x;
+\\ Integrate[x*Exp[x],x]->(x-1)*Exp[x] via by-parts; Integrate[Sin[x^2],x] and
+\\ Integrate[f[x],x] stay INERT (head still Integrate).
+\\ CRITICAL self-check: for every closed-form result R of Integrate[f,x],
+\\ Simplify[D[R,x] - f] must reduce to [int 0].
+(define int-head -> [sym (protect Integrate)])
+(define make-int  F -> [(int-head) F (dvar)])
+(define make-d-i  E -> [(d-expr) E (dvar)])
+(define simplify-of E -> (reduce [[sym (protect Simplify)] E]))
+
+\\ difference D[R,x] - f  as  Plus[D[R,x], Times[-1, f]]
+(define diff-back
+  R F -> [[sym (protect Plus)]
+           (make-d-i R)
+           [[sym (protect Times)] [int -1] F]])
+
+\\ self-check: Simplify[ D[(Integrate[F,x]),x] - F ] == [int 0]
+(define integrates-back?
+  F -> (let R (reduce (make-int F))
+            (content-eq (simplify-of (diff-back R F)) [int 0])))
+
+(define inert-integral?
+  F -> (let R (reduce (make-int F))
+            (= (head R) (int-head)))) \\ head still Integrate
+
+(define test-integration
+  -> (let Ign0 (demo-register-calculus)
+          Ign (output "~%=== SCUD 21 integration ===~%")
+          X (dvar)
+          \\ Integrate[x^2,x] -> x^3/3 (exact rational coefficient)
+          R2 (reduce (make-int [[sym (protect Power)] X [int 2]]))
+          Ok2 (term-set-eq? R2 [[sym (protect Times)] [rat 1 3] [[sym (protect Power)] X [int 3]]])
+          \\ Integrate[x^-1,x] -> Log[x]
+          Rm1 (reduce (make-int [[sym (protect Power)] X [int -1]]))
+          Okm1 (content-eq Rm1 [[sym (protect Log)] X])
+          \\ Integrate[Sin[x],x] -> -Cos[x]  i.e. Times[-1, Cos[x]]
+          RS (reduce (make-int [[sym (protect Sin)] X]))
+          OkS (term-set-eq? RS [[sym (protect Times)] [int -1] [[sym (protect Cos)] X]])
+          \\ Integrate[2x+3,x] -> x^2 + 3x  (verified via self-check below; here a Simplify shape)
+          Flin [[sym (protect Plus)] [[sym (protect Times)] [int 2] X] [int 3]]
+          \\ Integrate[x*Exp[x],x] -> (x-1)Exp[x] via by-parts
+          Fbp [[sym (protect Times)] X [[sym (protect Exp)] X]]
+          \\ --- INERT cases: head still Integrate ---
+          OkInertSin (inert-integral? [[sym (protect Sin)] [[sym (protect Power)] X [int 2]]])
+          OkInertF (inert-integral? [[sym (protect fI)] X])
+          \\ --- differentiate-back self-check (the un-foolable gate) ---
+          SC1 (integrates-back? [[sym (protect Power)] X [int 2]])
+          SC2 (integrates-back? [[sym (protect Power)] X [int -1]])
+          SC3 (integrates-back? [[sym (protect Sin)] X])
+          SC4 (integrates-back? Flin)
+          SC5 (integrates-back? Fbp)
+          OkSC (and SC1 (and SC2 (and SC3 (and SC4 SC5))))
+          Ok (and Ok2 (and Okm1 (and OkS (and OkInertSin (and OkInertF OkSC)))))
+          (do (output "21: x^2=~A x^-1=~A Sin=~A inert-Sin[x^2]=~A inert-f[x]=~A~%"
+                      Ok2 Okm1 OkS OkInertSin OkInertF)
+              (output "21 self-check D[R,x]-f=0: x^2=~A x^-1=~A Sin=~A 2x+3=~A x*Exp[x](by-parts)=~A~%"
+                      SC1 SC2 SC3 SC4 SC5)
+              (if Ok (output "integration (SCUD 21): PASS~%")
+                  (output "integration (SCUD 21): FAIL~%"))
+              Ok)))
+
 (define run-all-tests
   -> (let Ign (output "=== shen-cas test harness ===~%")
             Ok (and (run-golden) (run-rejection-tests) (attrs-demo) (run-lfp-tests)
                     (run-analysis-tests) (run-phase1-skeleton) (test-scope-block-fork)
                     (test-backend-seam) (test-correctness-gate) (test-eval-evaluator-wave1)
-                    (test-simplify) (test-differentiation))
+                    (test-simplify) (test-differentiation) (test-integration))
             (do (if Ok (output "~%ALL PASS~%") (output "~%SOME FAIL~%")) Ok)))
 
 (define test-backend-seam
