@@ -19,22 +19,17 @@
                   (if (= New E) E (reduce New)))   \\ fixed point
              (try-reduce E Rest))))
 
-(define rule-lhs (rule L _) -> L)
-(define rule-rhs (rule _ R) -> R)
+(define rule-lhs [rule L _] -> L)
+(define rule-rhs [rule _ R] -> R)
 
-\\ Naive registration of a few demo rules for testing
+\\ Naive registration of arith rules (now delegated to boot/arith.shen skeleton for SCUD 13.1)
 (define demo-register-arith
   -> (do 
-       (register-rule 
-         (rule [(sym Plus) (int 0) (named x (blank))]
-               (named x (blank))))
-       (register-rule 
-         (rule [(sym Plus) (named x (blank)) (int 0)]
-               (named x (blank))))
+       (load "boot/arith.shen")
        true))
 
 (define demo-reduce
   E -> (let _ (demo-register-arith)
             (reduce E)))
 
-(princ "core.shen (naive reduce) loaded.~%")
+(output "core.shen (naive reduce) loaded.~%")
