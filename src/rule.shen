@@ -1,10 +1,7 @@
 \\ rule.shen - checked-rule + binding analysis (Phase 1)
 \\ Uses pattern + expr.
 \\ bindings-cover enforced at construction/registration time.
-
-(load "src/expr.shen")
-(load "src/pattern.shen")
-(load "src/db.shen")
+\\ 16e: deps (expr/pattern/db) are loaded by load.shen before rule; no redundant loads.
 
 (define rule L R -> [rule L R])
 
@@ -57,15 +54,18 @@
 (define rule-head
   [rule L _] -> (if (cons? L) (hd L) L))
 
+\\ 16d: nested if (not 'and') so rule-lhs/rule-rhs are never applied to a
+\\ non-[rule ...] value; a malformed input raises the clean error, not an accessor crash.
 (define register-rule
-  R -> (if (and (checked-rule? R)
-                (bindings-cover? (rule-lhs R) (rule-rhs R)))
-           (let Sym (rule-head R)
-                Kind down
-                NewDb (assert-rule (value *db*) Sym Kind R)
-                _ (set *db* NewDb)
-                Ign (trap-error (warn-on-rule-registration R) (/. Err true))
-                R)
+  R -> (if (checked-rule? R)
+           (if (bindings-cover? (rule-lhs R) (rule-rhs R))
+               (let Sym (rule-head R)
+                    Kind down
+                    NewDb (assert-rule (value *db*) Sym Kind R)
+                    _ (set *db* NewDb)
+                    Ign (trap-error (warn-on-rule-registration R) (/. Err true))
+                    R)
+               (error "register-rule: not a checked-rule or bindings not covered ~A" R))
            (error "register-rule: not a checked-rule or bindings not covered ~A" R)))
 
 (define checked-rule?

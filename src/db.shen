@@ -34,7 +34,8 @@
 \\ rule rep in skeleton
 (define make-rule-datum L R -> [rule L R])
 (define make-rule-stub L R -> [rule L R])  \\ alias for compatibility
-(define checked-rule? X -> true)
+\\ 16b: the always-true checked-rule? was deleted; the strict [rule Lhs Rhs] version
+\\ in rule.shen is the single source of truth (rule.shen loads after db.shen).
 
 (define assert-rule
   Db Sym Kind R -> (append (db-datoms Db) [[Sym Kind R (length (db-datoms Db))]]))
@@ -72,3 +73,28 @@
 
 (define db-rule-count
   Db -> (length (filter (/. D (rule-datom? D)) (db-datoms Db))))
+
+\\ --- 16f: control-attribute accessors ---
+\\ Control attrs (hold-all/hold-first/hold-rest/listable) are stored as attr datoms
+\\ via assert-attribute and surfaced in the Attrs slot of symbol-entry-view.
+\\ (Structural attrs stay in the content-hash sig per invariant 1; only control attrs
+\\  reach the db per invariant 3.)
+
+\\ Attrs slot is element index 4 of [Sym Own Down Up Attrs].
+(define head-attrs
+  Db Sym -> (hd (tl (tl (tl (tl (symbol-entry-view Db Sym)))))))
+
+(define attr-present?
+  Db Sym Attr -> (element? Attr (head-attrs Db Sym)))
+
+(define holds-all?
+  Db Sym -> (attr-present? Db Sym (intern "hold-all")))
+
+(define holds-first?
+  Db Sym -> (attr-present? Db Sym (intern "hold-first")))
+
+(define holds-rest?
+  Db Sym -> (attr-present? Db Sym (intern "hold-rest")))
+
+(define listable?
+  Db Sym -> (attr-present? Db Sym (intern "listable")))

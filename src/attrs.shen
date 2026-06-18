@@ -103,6 +103,19 @@
   ________________________________
   [A | AS] : valid-attrs; )
 
+\\ --- 16f: control attributes reach the db ---
+\\ Structural attrs stay in the content-hash sig (invariant 1); control attrs
+\\ (hold-all/hold-first/hold-rest/listable) are asserted as datoms into *db* so the
+\\ evaluator gets a Hold/Listable signal via head-attrs/holds-*?/listable? (invariant 3).
+
+(define register-control-attrs
+  Sym [] -> Sym
+  Sym [A | AS] ->
+    (do (if (control-attribute? A)
+            (set *db* (assert-attribute (value *db*) Sym A))
+            true)
+        (register-control-attrs Sym AS)))
+
 \\ --- Explicit symbol declaration (calls into store structural sig stub) ---
 
 (define declare-symbol
@@ -119,6 +132,7 @@
                  _ (if (empty? Struct)
                        true
                        (declare-structural-sig Sym Struct))
+                 _ (register-control-attrs Sym Attrs)
                  Ign (trap-error (warn-on-attribute-declaration Sym) (/. Err true))
                  Sym)
             (error "declare-symbol: inconsistent attributes for ~A: ~A~%  (rejected combinations: hold-all+hold-{first,rest}, listable+hold-all)" Sym Attrs))))

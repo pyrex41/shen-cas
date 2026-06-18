@@ -137,7 +137,6 @@
   H Args ->
     (if (sym? H)
         (let S (sym-name H)
-             _ (ensure-structural-sig S)
              Raw (if (has-flat? S)
                      (flatten-args-for-hash S Args)
                      (map (/. A (content-hash A)) Args))

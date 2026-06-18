@@ -3,9 +3,7 @@
 \\ Reserved constructors to prevent literal exprs from masquerading as patterns.
 \\ Seq patterns only allowed in argument position of compounds.
 \\ extract-bindings for rule checking.
-
-(load "src/store.shen")
-(load "src/expr.shen")
+\\ 16e: store/expr loaded by load.shen before pattern; no redundant loads.
 
 \\ --- Datatypes (following sketch + compound-pattern rules) ---
 

@@ -1,7 +1,6 @@
 \\ match-ac.shen - Quick stub for Orderless + Flat + AC blowup warning (Phase 2)
 \\ Per sketch §7.3-7.4, plan Phase 2 acceptance, SCUD 9.2.
-
-(load "src/match.shen")
+\\ 16e: match (and match-seq) are loaded by load.shen before match-ac; no redundant load.
 
 (define ac-known-heads
   -> [[sym (protect Plus)] [sym (protect Times)] (protect Plus) (protect Times)])

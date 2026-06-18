@@ -6,10 +6,7 @@
 \\   rules via (rule LHS RHS) then optionally register-rule gate
 \\ Never emits unchecked/raw structures; errors on bad syntax.
 \\ See plan Phase 7 reader properties.
-
-(load "src/expr.shen")
-(load "src/pattern.shen")
-(load "src/rule.shen")
+\\ 16e: expr/pattern/rule loaded by load.shen before read; no redundant loads.
 
 \\ --- Tokens ---
 \\ (num N) | (id S) | lbrack | rbrack | lparen | rparen | plus | star | pow | comma

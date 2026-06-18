@@ -4,8 +4,7 @@
 
 \\ SCUD 15: backend seam (ref + stubs for compiled). Parameterize via current-*
 \\ Future backends must be basis-keyed and pass full harness.
-
-(load "src/db.shen")
+\\ 16e: db.shen is loaded by load.shen before core; no redundant intra-file load.
 
 \\ ref impl
 (define reduce-ref
@@ -21,14 +20,26 @@
 (define normal-form-compiled
   E -> E )
 
+(set *current-core* ref)
+
 (define current-core
-  -> 'ref )
+  -> (value *current-core*))
 
-(define current-reduce
-  -> reduce-ref )
+(define set-current-core
+  Tag -> (set *current-core* Tag))
 
-(define current-normal-form
-  -> normal-form-ref )
+\\ 16c: seam via tag-dispatch on (current-core). shen-go cannot apply a returned
+\\ function symbol, so route reduce/normal-form through reduce-via/normal-form-via
+\\ which pattern-match the backend tag. No bare-function application.
+(define reduce-via
+  ref E -> (reduce-ref E)
+  compiled E -> (reduce-compiled E)
+  _ E -> (reduce-ref E))
+
+(define normal-form-via
+  ref E -> (normal-form-ref E)
+  compiled E -> (normal-form-compiled E)
+  _ E -> (normal-form-ref E))
 
 (define rules-for-expr
   Db E -> (if (and (cons? Db) (not (empty? (db-datoms Db))))
@@ -40,8 +51,20 @@
               (reduce-args-compound Db E)
               E))
 
+\\ 16f: arg evaluation respects Hold control attrs read from the db.
+\\ hold-all -> no arg evaluated; hold-first -> first held; hold-rest -> all but first held.
 (define reduce-args-compound
-  Db [H | Args] -> (append [H] (map (/. A (reduce-db Db A)) Args)))
+  Db [H | Args] ->
+    (if (sym? H)
+        (let S (sym-name H)
+             (if (holds-all? Db S)
+                 [H | Args]
+                 (if (holds-first? Db S)
+                     [H | (cons (hd Args) (map (/. A (reduce-db Db A)) (tl Args)))]
+                     (if (holds-rest? Db S)
+                         [H | (cons (reduce-db Db (hd Args)) (tl Args))]
+                         [H | (map (/. A (reduce-db Db A)) Args)]))))
+        [H | (map (/. A (reduce-db Db A)) Args)]))
 
 (define reduce-db
   Db E -> (if (block-form? E)
@@ -69,7 +92,7 @@
   Db _ -> Db)
 
 (define reduce
-  E -> (reduce-ref E))
+  E -> (reduce-via (current-core) E))
 
 (define try-reduce-db
   Db E [] -> E
@@ -97,7 +120,7 @@
                         NF))))
 
 (define normal-form
-  E -> (normal-form-ref E))
+  E -> (normal-form-via (current-core) E))
 
 (define demo-register-arith
   -> (do (load "boot/arith.shen") true))

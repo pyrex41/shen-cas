@@ -1,9 +1,7 @@
 \\ match.shen - first-order matcher + substitute (Phase 1)
 \\ Supports literal, blank, named, compound.
 \\ Sequences via match-seq override; AC (Orderless/Flat) via match-ac stub (post load).
-
-(load "src/expr.shen")
-(load "src/pattern.shen")
+\\ 16e: expr/pattern loaded by load.shen before match; no redundant loads.
 
 \\ Custom optional type (avoid clash with Shen's list-existential some? / some)
 (define match-some X -> [just X])
