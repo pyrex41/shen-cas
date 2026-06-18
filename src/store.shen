@@ -3,6 +3,8 @@
 \\ Hash choice: portable recursive Shen (hash ... 1000000007) after canonicalization.
 \\ No basis/memo/rule-driven equality yet.
 \\ Structural signatures (Orderless/Flat/OneIdentity) are immutable creation facts.
+\\ Attrs canonical (flat flatten + orderless sort by content-hash) integrated into
+\\ content-hash path (via canonical-arg-hashes in compound case) per SCUD 5.2/9.2 stub.
 
 (datatype content-hash
   H : number;
@@ -36,7 +38,7 @@
   S -> (ch (hash-atom "sym" S)) where (symbol? S)
   (int N) -> (ch (hash-atom "int" N))
   [H | Args] -> (let Hh (content-hash* H)
-                     Ah (map content-hash* Args)
+                     Ah (canonical-arg-hashes H Args)
                      (ch (hash-compound (unwrap-ch Hh) (map unwrap-ch Ah))))
   _ -> (ch (hash-atom "other" 0)))
 
@@ -46,12 +48,12 @@
 (define unwrap-ch
   (ch N) -> N)
 
-\\ Canonical constructors (later consult sigs for Orderless/Flat before hashing)
+\\ Canonical constructors (consult sigs for Orderless/Flat via content-hash/canonical-arg-hashes)
 (define make-sym
-  S -> (sym S))
+  S -> [sym S])
 
 (define make-int
-  N -> (int N))
+  N -> [int N])
 
 (define make-compound
   H Args -> [H | Args])
@@ -144,4 +146,4 @@
                          [X Y | Ys]
                          [Y | (insert-by Pred X Ys)]))
 
-(output "store.shen loaded (Merkle hash per task-4 policy, intern, eq, sig stub).~%")
+(output "store.shen loaded (Merkle hash + attrs flat/orderless canonical in content-hash path).~%")
