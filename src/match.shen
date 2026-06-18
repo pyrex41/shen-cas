@@ -44,6 +44,10 @@
              none))
   _ _ -> none)
 
+\\ NOTE: match-seq.shen (loaded after) overrides match-arg-list with prolog-backed
+\\ version supporting BlankSequence/BlankNullSequence + named seq vars (light integration).
+\\ The above is the Phase-1 first-order fallback used inside the prolog normal case.
+
 (define compound? 
   [_ | _] -> true
   _ -> false)
