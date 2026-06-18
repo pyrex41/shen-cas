@@ -17,6 +17,10 @@
 (declare-structural (protect Times) [(protect flat) (protect orderless)])
 (declare-structural (protect Minus) [(protect flat)])  ; no orderless for now (subtraction not commutative)
 
+\\ Additional core symbols per plan (structural or basic; full attrs later)
+(declare-structural (protect Power) [])  ; not Flat/Orderless by default
+;; List, If, CompoundExpression declared as needed for control (13.2 will expand rules)
+
 \\ --- Simplification rules (as checked-rule via register-rule) ---
 
 \\ x + 0 -> x
@@ -44,10 +48,7 @@
   (rule [[sym Minus] [named x [blank]] [int 0]]
         [named x [blank]]))
 
-\\ 0 - x -> -x (simplified to negative for skeleton, but use Minus)
-(register-rule
-  (rule [[sym Minus] [int 0] [named x [blank]]]
-        [[sym Minus] [named x [blank]]]))  ; placeholder
+\\ Note: 0 - x kept symbolic for skeleton (full numeric tower later); no rule for now to avoid complexity.
 
 \\ 1 * x -> x
 (register-rule
