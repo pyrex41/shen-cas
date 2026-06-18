@@ -251,9 +251,36 @@
             HasTransChain (element? [(protect f) (protect i)] ReachChain)
             HasTransDiamond (element? [(protect f) (protect i)] ReachDiamond)
             HasTrans (element? [(protect f) (protect h)] ReachAcyc)
+            ;; enhance for direct-deps-from-pairs and more cases (per 11.3 review)
+            CyclePairs '(((protect c) ((protect d))) ((protect d) ((protect c))))
+            EdgesCP (direct-deps-from-pairs CyclePairs)
+            LoopsCP (rule-dependency-loops-from-edges EdgesCP)
+            HasC (element? (protect c) LoopsCP)
+            HasD (element? (protect d) LoopsCP)
+            Mixed '(((protect e) ((protect f))) ((protect f) ((protect e))) ((protect e) ((protect e))))
+            EdgesM (direct-deps-from-pairs Mixed)
+            LoopsM (rule-dependency-loops-from-edges EdgesM)
+            HasE (element? (protect e) LoopsM)
+            HasF2 (element? (protect f) LoopsM)
+            EmptyEdges '()
+            LoopsEmpty (rule-dependency-loops-from-edges EmptyEdges)
+            NoLoopsEmpty (empty? LoopsEmpty)
+            ;; real db test for rule-dependency-loops + direct-deps (post 10.2/11.3)
+            R_f (rule [(sym (protect f))] [[sym (protect g)]] )
+            R_g (rule [(sym (protect g))] [[sym (protect f)]] )
+            Db0 (empty-db)
+            Db1 (assert-rule Db0 (protect f) down R_f)
+            Db2 (assert-rule Db1 (protect g) down R_g)
+            LoopsDb (rule-dependency-loops Db2)
+            HasFdb (element? (protect f) LoopsDb)
+            HasGdb (element? (protect g) LoopsDb)
+            SelfP (rule-dependency-loops-from-edges (direct-deps-from-pairs '(((protect s) ((protect s))))))
+            HasS (element? (protect s) SelfP)
             (and HasF HasFmut HasGmut
                  NoChain NoDiamond NoAcyc
-                 HasTransChain HasTransDiamond HasTrans)))
+                 HasTransChain HasTransDiamond HasTrans
+                 HasC HasD HasE HasF2 NoLoopsEmpty
+                 HasFdb HasGdb HasS)))
 
 \\ run the 11.3 specific test (uses output; if I/O fails in some loads, direct call test fn)
 (define run-lfp-tests
