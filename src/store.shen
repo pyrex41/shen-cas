@@ -9,7 +9,7 @@
 (datatype content-hash
   H : number;
   ________________
-  (ch H) : content-hash;)
+  [ch H] : content-hash;)
 
 (set *intern-table* [])
 
@@ -34,19 +34,19 @@
             \\ Alpha-equivalent Module/With bodies therefore share content hashes.
 
 (define content-hash*
-  (sym S) -> (ch (hash-atom "sym" S))
-  S -> (ch (hash-atom "sym" S)) where (symbol? S)
-  (int N) -> (ch (hash-atom "int" N))
+  [sym S] -> [ch (hash-atom "sym" S)]
+  S -> [ch (hash-atom "sym" S)] where (symbol? S)
+  [int N] -> [ch (hash-atom "int" N)]
   [H | Args] -> (let Hh (content-hash* H)
                      Ah (canonical-arg-hashes H Args)
-                     (ch (hash-compound (unwrap-ch Hh) (map unwrap-ch Ah))))
-  _ -> (ch (hash-atom "other" 0)))
+                     [ch (hash-compound (unwrap-ch Hh) (map unwrap-ch Ah))])
+  _ -> [ch (hash-atom "other" 0)])
 
 (define content-hash
   E -> (content-hash* (alpha-canonicalize E)))
 
 (define unwrap-ch
-  (ch N) -> N)
+  [ch N] -> N)
 
 \\ Canonical constructors (consult sigs for Orderless/Flat via content-hash/canonical-arg-hashes)
 (define make-sym
@@ -81,7 +81,7 @@
 (set *structural-sigs* [])
 
 (define declare-structural-sig
-  Sym Attrs -> (if (element? Sym (value *structural-sigs*))
+  Sym Attrs -> (if (assoc Sym (value *structural-sigs*))
                    (error "structural sig already declared for ~A" Sym)
                    (set *structural-sigs* [[Sym | Attrs] | (value *structural-sigs*)])))
 

@@ -20,7 +20,7 @@
 \\
 \\ No evaluation, hold logic, or rule integration yet.
 
-(load "src/store.shen")
+\\ (load "src/store.shen")  ; rely on load.shen order (store before attrs); redundant load contributes to ctor noise
 
 \\ --- Attribute classification (symbols for clean list syntax [flat orderless ...]) ---
 
