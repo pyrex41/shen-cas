@@ -68,14 +68,14 @@
 
 \\ --- Orderless via prolog permutation (sketch §7.3, using match-seq) ---
 (defprolog permutation
-  [] [] <--
+  [] [] <-- ;
   [X | Y] Z <--
     (select X Z W)
-    (permutation Y W))
+    (permutation Y W); )
 
 (defprolog select
-  X [X | Y] Y <--
-  X [Y | Z] [Y | W] <-- (select X Z W))
+  X [X | Y] Y <-- ;
+  X [Y | Z] [Y | W] <-- (select X Z W); )
 
 (define match-orderless
   Head PArgs EArgs ->
@@ -91,15 +91,15 @@
 (define match-compound
   PH PArgs EH EArgs ->
     (let HeadMatch (match PH EH)
-         (if (some? HeadMatch)
+         (if (match-some? HeadMatch)
              (let FlatEArgs (if (cons? EH) (flatten-flat-args EH EArgs) EArgs)
                   ArgMatch (if (and (cons? EH) (has-orderless? EH))
                                (match-orderless EH PArgs FlatEArgs)
                                (match-arg-list PArgs FlatEArgs))
                   _ (if (cons? EH) (ac-blowup-warning EH PArgs) true)
-                  (if (some? ArgMatch)
-                      (some (append (unwrap HeadMatch) (unwrap ArgMatch)))
-                      none))
-             none)))
+                  (if (match-some? ArgMatch)
+                      (match-some (append (match-unwrap HeadMatch) (match-unwrap ArgMatch)))
+                      match-none))
+             match-none)))
 
 (output "match-ac.shen loaded (quick AC stub: orderless perm + flat flatten + blowup warning).~%")

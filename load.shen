@@ -12,7 +12,7 @@
 (load "src/core.shen")
 (load "src/scope.shen")
 (load "src/match-seq.shen")
-\\ (load "src/match-ac.shen")  \\ quick stub (Orderless + Flat + AC blowup per sketch 7.3-7.4 + plan Phase 2) ; disabled for skeleton load health review; re-enable after AC wiring stable
+(load "src/match-ac.shen")  \\ 9.2 complete: Orderless perm + Flat flatten + blowup warning + match-compound integration (Prolog)
 \\ (load "src/scope.shen")
 \\ (load "src/warn.shen")
 \\ (load "src/read.shen")
