@@ -51,7 +51,7 @@
 (define golden-cases
   -> [
     [12 -> 12]
-    [(symbol Plus) -> (symbol Plus)]
+    [(sym Plus) -> (sym Plus)]
     [[12 * [5 - 3]] -> 24]
     [[9 - 8] -> 1]
     [[2 + 3] -> 5]
@@ -61,7 +61,7 @@
     [[56 + [x - 7]] -> [56 + [x - 7]]]
     [[-245 * 67] -> -16415]
     [[x / x] -> [x / x]]
-    [(symbol x) -> (symbol x)]
+    [(sym x) -> (sym x)]
   ])
 
 \\ Run one case with trivial-reduce; return (pass? input expected got)
