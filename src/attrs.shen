@@ -61,12 +61,12 @@
 
 (define list?
   [] -> true
-  [_ | _] -> true
-  _ -> false)
+  [X | Xs] -> true
+  X -> false)
 
-(define filter
+(define attrs-filter
   _ [] -> []
-  F [X | Xs] -> (if (F X) [X | (filter F Xs)] (filter F Xs)))
+  F [X | Xs] -> (if (F X) [X | (attrs-filter F Xs)] (attrs-filter F Xs)))
 
 (define every
   _ [] -> true
@@ -115,11 +115,11 @@
     (if (not (list? Attrs))
         (error "declare-symbol: second arg must be a list of attributes, got ~A" Attrs)
         (if (consistent-attrs? Attrs)
-            (let Struct (filter structural-attribute? Attrs)
+            (let Struct (attrs-filter structural-attribute? Attrs)
                  _ (if (empty? Struct)
                        true
                        (declare-structural-sig Sym Struct))
-                 _ (trap-error (warn-on-attribute-declaration Sym) (/. _ true))
+                 Ign (trap-error (warn-on-attribute-declaration Sym) (/. Err true))
                  Sym)
             (error "declare-symbol: inconsistent attributes for ~A: ~A~%  (rejected combinations: hold-all+hold-{first,rest}, listable+hold-all)" Sym Attrs))))
 

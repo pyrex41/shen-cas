@@ -26,8 +26,12 @@
 (define hash-atom
   Tag Val -> (hash (portable-atom-string Tag Val) 1000000007))
 
+(define hash-compound-args
+  [] -> ""
+  [X | Xs] -> (cn (str X) (hash-compound-args Xs)))
+
 (define hash-compound
-  H ArgHashes -> (hash (cn (str H) (fold-left cn "" (map str ArgHashes))) 1000000007))
+  H ArgHashes -> (hash (cn (str H) (hash-compound-args ArgHashes)) 1000000007))
 
 (define alpha-canonicalize
   E -> E)   \\ stub (tied to binders); scope.shen redefines for Module/With alpha-renaming before hash.
@@ -68,8 +72,8 @@
             H (content-hash* Canon)
             Key (unwrap-ch H)
             Found (intern-lookup Key (value *intern-table*))
-            (if (cons? Found)
-                (hd (tl Found))   \\ return the already-interned node for this content-hash (sharing)
+            (if (assoc-hit? Found)
+                (hd (tl Found))
                 (let Node Canon
                      _ (set *intern-table* (intern-store Key Node (value *intern-table*)))
                      Node))))
@@ -80,10 +84,17 @@
 \\ Structural sig registry (immutable after first use; 5.3)
 (set *structural-sigs* [])
 
+(define assoc-hit?
+  X -> (if (cons? X) (not (empty? X)) false))
+
+(define sig-present?
+  Sym -> (assoc-hit? (assoc Sym (value *structural-sigs*))))
+
 (define declare-structural-sig
-  Sym Attrs -> (if (assoc Sym (value *structural-sigs*))
+  Sym Attrs -> (if (sig-present? Sym)
                    (error "structural sig already declared for ~A" Sym)
-                   (set *structural-sigs* [[Sym | Attrs] | (value *structural-sigs*)])))
+                   (do (set *structural-sigs* [[Sym | Attrs] | (value *structural-sigs*)])
+                       true)))
 
 (define get-structural-sig
   Sym -> (assoc Sym (value *structural-sigs*)))
@@ -93,8 +104,9 @@
 \\ content hash must be stable and db-independent. Compare via str names to avoid load-order free-var issues.
 (define structural-sig-contains-name?
   Sym Name -> (let Sig (get-structural-sig Sym)
-                   (and (cons? Sig)
-                        (element? Name (map (/. A (str A)) (tl Sig))))))
+                   (if (sig-present? Sym)
+                       (element? Name (map (/. A (str A)) (tl Sig)))
+                       false)))
 
 (define has-flat?
   Sym -> (structural-sig-contains-name? Sym "flat"))
@@ -103,7 +115,8 @@
   Sym -> (structural-sig-contains-name? Sym "orderless"))
 
 (define sym?
-  X -> (and (cons? X) (symbol? (hd X)) (= (str (hd X)) "sym")))
+  [sym S] -> true where (symbol? S)
+  X -> false)
 
 (define sym-name
   X -> (hd (tl X)) where (sym? X)
