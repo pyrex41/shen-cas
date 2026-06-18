@@ -15,44 +15,43 @@
 (define match-args-with-sequences
   \\ Use Shen's Prolog subsystem for nondeterministic splitting (per sketch)
   PatArgs ExprArgs ->
-      (prolog? (prolog-match-arg-list PatArgs ExprArgs [])))  ; returns the (some Bindings) from base return
+      (prolog?
+          (prolog-match-arg-list PatArgs ExprArgs [] B)
+          (return (some B))))
 
 (defprolog prolog-match-arg-list
-    \\ Base case: empty pattern matches empty args; return the accumulated bindings
-    [] [] Acc <-- (return (some Acc));
+    \\ Base: unify out = in ; return the acc wrapped
+    [] [] Acc Acc <-- ;
 
-    \\ Sequence pattern (one or more): try all splits, pass acc unchanged (no binding for unnamed seq)
-    [(blank-seq) | PRest] EArgs Acc <--
-        (split EArgs Front Back)
-        (when (not (= Front [])))   \\ at least one element
-        (prolog-match-arg-list PRest Back Acc);
-
-    \\ Null sequence: zero or more allowed
-    [(blank-null-seq) | PRest] EArgs Acc <--
-        (split EArgs Front Back)
-        (prolog-match-arg-list PRest Back Acc);
-
-    \\ Named sequence var (blank-seq): consume, add binding to acc, delegate
-    [(named Name (blank-seq)) | PRest] EArgs Acc <--
+    \\ Seq 1+: delegate, no added binding for unnamed
+    [(blank-seq) | PRest] EArgs In Out <--
         (split EArgs Front Back)
         (when (not (= Front [])))
-        (is NewAcc (append Acc [[Name Front]]))
-        (prolog-match-arg-list PRest Back NewAcc);
+        (prolog-match-arg-list PRest Back In Out);
 
-    \\ Named sequence var (blank-null-seq)
-    [(named Name (blank-null-seq)) | PRest] EArgs Acc <--
+    \\ Null 0+
+    [(blank-null-seq) | PRest] EArgs In Out <--
         (split EArgs Front Back)
-        (is NewAcc (append Acc [[Name Front]]))
-        (prolog-match-arg-list PRest Back NewAcc);
+        (prolog-match-arg-list PRest Back In Out);
 
-    \\ Normal (non-seq) pattern element: delegate to first-order match, append its bindings
-    [P | PRest] [E | ERest] Acc <--
-        (is Result (match P E))
-        (when (some? Result))
-        (is NewAcc (append Acc (unwrap Result)))
-        (prolog-match-arg-list PRest ERest NewAcc);
+    \\ Named seq: add binding, delegate
+    [(named Name (blank-seq)) | PRest] EArgs In Out <--
+        (split EArgs Front Back)
+        (when (not (= Front [])))
+        (is Mid (append In [[Name Front]]))
+        (prolog-match-arg-list PRest Back Mid Out);
 
-    \\ no more clauses: implicit failure (prolog? will not return a value)
+    [(named Name (blank-null-seq)) | PRest] EArgs In Out <--
+        (split EArgs Front Back)
+        (is Mid (append In [[Name Front]]))
+        (prolog-match-arg-list PRest Back Mid Out);
+
+    \\ Normal: match, append binding, delegate
+    [P | PRest] [E | ERest] In Out <--
+        (is R (match P E))
+        (when (some? R))
+        (is Mid (append In (unwrap R)))
+        (prolog-match-arg-list PRest ERest Mid Out);
 )
 
 \\ Prolog predicate to split a list at all possible positions (prefix/suffix)
