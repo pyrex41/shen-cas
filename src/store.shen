@@ -27,13 +27,21 @@
 (define hash-compound
   H ArgHashes -> (hash (cn (str H) (fold-left cn "" (map str ArgHashes))) 1000000007))
 
-(define content-hash
+(define alpha-canonicalize
+  E -> E)   \\ stub (tied to binders); scope.shen redefines for Module/With alpha-renaming before hash.
+            \\ Alpha-equivalent Module/With bodies therefore share content hashes.
+
+(define content-hash*
   (sym S) -> (ch (hash-atom "sym" S))
+  S -> (ch (hash-atom "sym" S)) where (symbol? S)
   (int N) -> (ch (hash-atom "int" N))
-  [H | Args] -> (let Hh (content-hash H)
-                     Ah (canonical-arg-hashes H Args)
+  [H | Args] -> (let Hh (content-hash* H)
+                     Ah (map content-hash* Args)
                      (ch (hash-compound (unwrap-ch Hh) (map unwrap-ch Ah))))
   _ -> (ch (hash-atom "other" 0)))
+
+(define content-hash
+  E -> (content-hash* (alpha-canonicalize E)))
 
 (define unwrap-ch
   (ch N) -> N)
@@ -49,16 +57,18 @@
   H Args -> [H | Args])
 
 (define cas-intern
-  E -> (let H (content-hash E)
+  E -> (let Canon (alpha-canonicalize E)
+            H (content-hash* Canon)
             (intern-lookup (unwrap-ch H) (value *intern-table*))))
 
 (define cas-intern!
-  E -> (let H (content-hash E)
+  E -> (let Canon (alpha-canonicalize E)
+            H (content-hash* Canon)
             Key (unwrap-ch H)
             Found (intern-lookup Key (value *intern-table*))
             (if (cons? Found)
                 (hd (tl Found))   \\ return the already-interned node for this content-hash (sharing)
-                (let Node E
+                (let Node Canon
                      _ (set *intern-table* (intern-store Key Node (value *intern-table*)))
                      Node))))
 

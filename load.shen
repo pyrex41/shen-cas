@@ -11,6 +11,7 @@
 (load "src/query.shen")
 (load "src/match.shen")
 (load "src/core.shen")
+(load "src/scope.shen")
 (load "src/match-seq.shen")
 \\ (load "src/match-ac.shen") ; not yet
 \\ (load "src/scope.shen")
