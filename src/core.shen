@@ -7,14 +7,14 @@
 
 (load "src/db.shen")
 
-;; ref impl
+\\ ref impl
 (define reduce-ref
   E -> (reduce-db (value *db*) E))
 
 (define normal-form-ref
   E -> (normal-form-db (value *db*) E))
 
-;; stub compiled backend (to be filled with basis-keyed compiled dispatch etc.)
+\\ stub compiled backend (basis-keyed compiled dispatch etc.)
 (define reduce-compiled
   E -> E )
 

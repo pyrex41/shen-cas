@@ -154,30 +154,30 @@
 (define dispatch-lookup
   K -> (assoc K (value *dispatch-cache*)))
 
+(define dispatch-cache-hit?
+  Hit -> (if (cons? Hit) (not (empty? Hit)) false))
+
 (define dispatch-store!
   K V -> (set *dispatch-cache* (adjoin [K V] (value *dispatch-cache*))))
 
 (define expr-head-symbol
-  [[sym S] | _] -> [(sym S)]
-  [(sym S) | _] -> [(sym S)]
+  [[sym S] | Rest] -> [sym S]
   E -> (if (cons? E) (hd E) E))
 
 (define shape-key
   E -> (let Hs (expr-head-symbol E)
             n (if (and (cons? E) (cons? (tl E))) (length (tl E)) 0)
-         [Hs n]))   ; head + arity as cheap shape
+         [Hs n]))
 
 (define compute-cands-for-head
   Db Hs ->
     (if (not (cons? Hs))
         []
         (let V (symbol-entry-view Db Hs)
-             (if (cons? V)
-                 (let Own (hd (tl V))
-                      Down (hd (tl (tl V)))
-                      Up (hd (tl (tl (tl V))))
-                      (append Own (append Down Up)))
-                 []))))
+             Own (hd (tl V))
+             Down (hd (tl (tl V)))
+             Up (hd (tl (tl (tl V))))
+             (append Own (append Down Up)))))
 
 (define dispatch-candidates
   Db E ->
@@ -186,11 +186,11 @@
          Sh (shape-key E)
          K (dispatch-cache-key B Hs Sh)
          Hit (dispatch-lookup K)
-         (if (cons? Hit)
+         (if (dispatch-cache-hit? Hit)
              (hd (tl Hit))
              (let Cands (compute-cands-for-head Db Hs)
-                  _ (if (cons? Cands) (dispatch-store! K Cands) true)
-               Cands))))
+                  (do (dispatch-store! K Cands)
+                      Cands)))))
 
 \\ --- 11.2 cold analysis relations (plain Shen over db values) ---
 \\ Per SCUD 11.2, ADR-001, plan Phase 4: plain non-recursive relations (no Prolog).
