@@ -6,15 +6,9 @@
 (load "src/db.shen")
 
 (define rules-for-expr
-  Db E ->
-    (let H (expr-head E)
-         (if (empty? H)
-             []
-             (let Entry (symbol-entry-view Db H)
-                  Own (hd (tl Entry))
-                  Down (hd (tl (tl Entry)))
-                  Up (hd (tl (tl (tl Entry))))
-                  (append Own (append Down Up))))))
+  Db E -> (if (and (cons? Db) (not (empty? (db-datoms Db))))
+              (dispatch-candidates Db E)
+              []))
 
 (define reduce
   E -> (reduce (value *db*) E)

@@ -145,16 +145,56 @@
   Edges -> (let Norm (dedup Edges)
               (lfp Norm (/. R (reach-step Norm R)))))
 
-\\ --- basic dispatch/analysis stubs (for 11.1/11.2 placeholders; expanded later) ---
-(define shape-key _ -> [])   \\ stub (unit may not be bound)
+\\ --- native basis-keyed dispatch index (SCUD 11.1) ---
+(set *dispatch-cache* [])
 
-(define dispatch-candidates _ -> (/. _ []))
+(define dispatch-cache-key
+  B Hs Sh -> [B Hs Sh])
 
+(define dispatch-lookup
+  K -> (assoc K (value *dispatch-cache*)))
+
+(define dispatch-store!
+  K V -> (set *dispatch-cache* (adjoin [K V] (value *dispatch-cache*))))
+
+(define expr-head-symbol
+  [[sym S] | _] -> [(sym S)]
+  [(sym S) | _] -> [(sym S)]
+  E -> (if (cons? E) (hd E) E))
+
+(define shape-key
+  E -> (let Hs (expr-head-symbol E)
+            n (if (and (cons? E) (cons? (tl E))) (length (tl E)) 0)
+         [Hs n]))   ; head + arity as cheap shape
+
+(define compute-cands-for-head
+  Db Hs ->
+    (if (not (cons? Hs))
+        []
+        (let V (symbol-entry-view Db Hs)
+             (if (cons? V)
+                 (let Own (hd (tl V))
+                      Down (hd (tl (tl V)))
+                      Up (hd (tl (tl (tl V))))
+                      (append Own (append Down Up)))
+                 []))))
+
+(define dispatch-candidates
+  Db E ->
+    (let B (db-basis Db)
+         Hs (expr-head-symbol E)
+         Sh (shape-key E)
+         K (dispatch-cache-key B Hs Sh)
+         Hit (dispatch-lookup K)
+         (if (cons? Hit)
+             (hd (tl Hit))
+             (let Cands (compute-cands-for-head Db Hs)
+                  _ (if (cons? Cands) (dispatch-store! K Cands) true)
+               Cands))))
+
+;; placeholders for 11.2
 (define covers? _ -> (/. _ true))
-
 (define unbound-vars _ -> (/. _ []))
-
 (define attr-conflicts _ -> (/. _ []))
-
 (define oneid-no-unary _ -> [])
 
