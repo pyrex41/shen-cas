@@ -10,17 +10,11 @@
 (load "src/query.shen")
 (load "src/warn.shen")
 (load "src/match.shen")
+(load "src/match-ac.shen")
+\\ (load "src/match-seq.shen")  \\ deferred: prolog seq match needs boolean-hardening
 (load "src/core.shen")
 (load "src/scope.shen")
-(load "src/match-seq.shen")
-(load "src/match-ac.shen")  \\ 9.2 complete: Orderless perm + Flat flatten + blowup warning + match-compound integration (Prolog)
-\\ (load "src/scope.shen")
-\\ (load "src/read.shen")
-\\ (load "src/print.shen")
-
-\\ Bootstrap rules (later)
-\\ (load "boot/arith.shen")
-\\ etc.
+(load "src/read.shen")
 
 (output "shen-cas loaded (skeleton). See plan.md and test.shen.~%")
 (load "test/test.shen")
