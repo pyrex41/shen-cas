@@ -261,6 +261,15 @@
 (define demo-register-simplify
   -> (do (demo-register-arith) (load "boot/simplify.shen") true))
 
+\\ SCUD 20 Wave 4: load elementary-function symbols/table + the D rule library.
+\\ Order matters: simplify BEFORE calculus so D output auto-simplifies in the
+\\ unified fixpoint; elemfun supplies Sin/Cos/... symbols + exact-value table.
+(define demo-register-calculus
+  -> (do (demo-register-simplify)
+         (load "boot/elemfun.shen")
+         (load "boot/calculus.shen")
+         true))
+
 (define demo-reduce
   E -> (let Ign (demo-register-arith)
             (reduce E)))

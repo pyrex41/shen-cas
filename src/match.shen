@@ -76,13 +76,43 @@
   [] E -> E
   [[Name Val] | Rest] E -> (substitute Rest (replace-free Name Val E)))
 
+\\ Sequence values are wrapped [seqval | Front] (see match-seq seq-binding) so a
+\\ matched sequence can be distinguished from an ordinary compound expr at
+\\ substitution time and SPLICED into the enclosing argument list. A bare [sym Name]
+\\ that resolves to a seq value in head position degrades to its first element
+\\ (seq vars are only meaningful in arg position, so this branch is unused in well-
+\\ formed rules; we keep it total).
+(define seqval?
+  X -> (and (cons? X) (= (hd X) (intern "seqval"))))
+
+(define seqval-items
+  X -> (tl X))
+
 (define replace-free
   Name Val [sym Name] -> Val
   Name Val [sym S] -> [sym S]
   Name Val [int N] -> [int N]
   Name Val [rat N D] -> [rat N D]
-  Name Val [H | Args] -> [(replace-free Name Val H) | (map (/. X (replace-free Name Val X)) Args)]
+  Name Val [H | Args] -> [(replace-free-head Name Val H) | (replace-free-args Name Val Args)]
   Name Val X -> X)
+
+\\ Head position: a seqval substituted into head collapses to its first element
+\\ (defensive; not produced by well-formed calculus rules).
+(define replace-free-head
+  Name Val H -> (let R (replace-free Name Val H)
+                     (if (seqval? R)
+                         (if (cons? (seqval-items R)) (hd (seqval-items R)) R)
+                         R)))
+
+\\ Arg position: substitute each arg; if the result is a seqval, splice its items
+\\ into the surrounding arg list instead of nesting a list.
+(define replace-free-args
+  Name Val [] -> []
+  Name Val [A | As] -> (let R (replace-free Name Val A)
+                            Rest (replace-free-args Name Val As)
+                            (if (seqval? R)
+                                (append (seqval-items R) Rest)
+                                (cons R Rest))))
 
 \\ 18b: True is the canonical (protect True) symbol; an uppercase pattern var
 \\ would wrongly match ANY [sym X] (incl. [sym False]). Compare by name.

@@ -23,11 +23,19 @@
           [named (protect t) [blank-null-seq]]]
         [int 0]))
 
-\\ NOTE: the n-ary multiplicative-identity drop (Times[s___,1,t___]->Times[s,t])
-\\ is intentionally NOT a rule: its RHS would require sequence-splicing in
-\\ substitute (not yet supported -- bindings are lists). The binary Times[x_,1]->x
-\\ (boot/arith) collapses 2-arg cases, and the audited collect-like-terms pass
-\\ (Simplify head) drops literal-1 factors and folds numeric coefficients n-arily.
+\\ --- multiplicative identity drop: Times[..,1,..] -> Times[..] ---
+\\ SCUD 20: substitute now SPLICES tagged sequence bindings (see match-seq /
+\\ match.shen), so the n-ary identity drop CAN be a rule -- its RHS Times[s,t]
+\\ splices the matched s___/t___ sequences back into the arg list. Strictly
+\\ shrinks node count (drops the literal 1). Anchored by [int 1] so it only fires
+\\ when a 1 is present and never loops. This is what lets D output like
+\\ Times[3,Power[x,2],1] collapse to 3 x^2 in the unified fixpoint.
+(register-rule
+  (rule [[sym (protect Times)]
+          [named (protect s) [blank-null-seq]]
+          [int 1]
+          [named (protect t) [blank-null-seq]]]
+        [[sym (protect Times)] [sym (protect s)] [sym (protect t)]]))
 
 \\ --- 0^positive -> 0  (ordered before x^0 so 0^0 never matches x^0) ---
 (register-rule
@@ -45,5 +53,18 @@
   (rule [condition [[sym (protect Power)] [named (protect x) [blank]] [int 0]]
                    [[sym (protect UnsameQ)] [sym (protect x)] [int 0]]]
         [int 1]))
+
+\\ --- OneIdentity collapse: Plus[a]->a, Times[a]->a ---
+\\ SCUD 20: single-argument Plus/Times collapse to their argument (Mathematica
+\\ OneIdentity). These never arise from well-formed user input (Plus/Times have
+\\ >=2 args) but the calculus binary-peel rules transiently build Plus[x]/Times[x];
+\\ collapsing them keeps the fixpoint clean. Strictly shrinks node count.
+(register-rule
+  (rule [[sym (protect Plus)] [named (protect x) [blank]]]
+        [sym (protect x)]))
+
+(register-rule
+  (rule [[sym (protect Times)] [named (protect x) [blank]]]
+        [sym (protect x)]))
 
 (output "boot/simplify.shen loaded.~%")

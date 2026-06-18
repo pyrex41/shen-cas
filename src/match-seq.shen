@@ -116,9 +116,11 @@
              (match-some (append (seq-binding P Front) (match-unwrap M)))
              (seq-try-splits P PRest Rest))))
 
-\\ Named seq binds Name -> Front (the consumed list); unnamed contributes nothing.
+\\ Named seq binds Name -> [seqval | Front] (the consumed list, tagged so
+\\ substitute can SPLICE it into an enclosing arg list rather than nesting a raw
+\\ list); unnamed contributes nothing.
 (define seq-binding
-  [named Name _] Front -> [[Name Front]]
+  [named Name _] Front -> [[Name (cons (intern "seqval") Front)]]
   _ _ -> [])
 
 \\ Seq-aware override of match-arg-list (defined positionally in match.shen).

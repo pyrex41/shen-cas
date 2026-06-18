@@ -310,11 +310,11 @@
           M1 (match [[sym (protect f)] (named (protect a) (blank-seq)) [int 9]]
                     [[sym (protect f)] [int 1] [int 2] [int 9]])
           Ok1 (and (match-some? M1)
-                   (= (match-unwrap M1) [[(protect a) [[int 1] [int 2]]]]))
+                   (= (match-unwrap M1) [[(protect a) [(intern "seqval") [int 1] [int 2]]]]))
           M2 (match [[sym (protect f)] (named (protect a) (blank-null)) [int 9]]
                     [[sym (protect f)] [int 9]])
           Ok2 (and (match-some? M2)
-                   (= (match-unwrap M2) [[(protect a) []]]))
+                   (= (match-unwrap M2) [[(protect a) [(intern "seqval")]]]))
           M3 (match [[sym (protect f)] (named (protect a) (blank-seq)) [int 9]]
                     [[sym (protect f)] [int 9]])
           Ok3 (not (match-some? M3))
@@ -486,12 +486,106 @@
               (if Ok (output "simplify (SCUD 19): PASS~%") (output "simplify (SCUD 19): FAIL~%"))
               Ok)))
 
+\\ === SCUD 20 Wave 4: symbolic differentiation ===
+\\ Builds D[...] exprs, reduces, and checks the canonical simplified result.
+\\ Acceptance: D[x^3,x]->3x^2 ; D[x^2+x,x]->2x+1 ; D[5,x]->0 ; D[x,x]->1 ;
+\\ D[y,x]->0 ; D[Sin[x],x]->Cos[x] ; D[Sin[x^2],x]->2x*Cos[x^2] ;
+\\ D[x*Sin[x],x]->Sin[x]+x*Cos[x] ; D[f[x],x] stays INERT.
+(define d-expr -> [sym (protect D)])
+(define dvar  -> [sym (protect xd)])    \\ the differentiation variable x
+
+\\ helper: D[E, x]
+(define make-d
+  E -> [(d-expr) E (dvar)])
+
+\\ Build Power[base,exp], Times[..], Plus[..], Sin[..] over the xd variable.
+(define test-differentiation
+  -> (let Ign0 (demo-register-calculus)
+          Ign (output "~%=== SCUD 20 differentiation ===~%")
+          X (dvar)
+          \\ D[x^3,x] -> 3 x^2  i.e. Times[3, Power[x,2]]
+          R1 (reduce (make-d [[sym (protect Power)] X [int 3]]))
+          Ok1 (content-eq R1 [[sym (protect Times)] [int 3] [[sym (protect Power)] X [int 2]]])
+          \\ D[x^2 + x, x] -> 2 x + 1  i.e. Plus[Times[2, x], 1] (orderless: compare via Simplify)
+          R2 (reduce (make-d [[sym (protect Plus)] [[sym (protect Power)] X [int 2]] X]))
+          \\ expected canonical: Plus[1, Times[2,x]] (orderless sorts); accept either ordering
+          Ok2 (d-plus-2x-1? R2)
+          \\ D[5,x] -> 0
+          R3 (reduce (make-d [int 5]))
+          Ok3 (content-eq R3 [int 0])
+          \\ D[x,x] -> 1
+          R4 (reduce (make-d X))
+          Ok4 (content-eq R4 [int 1])
+          \\ D[y,x] -> 0
+          R5 (reduce (make-d [sym (protect yd)]))
+          Ok5 (content-eq R5 [int 0])
+          \\ D[Sin[x],x] -> Cos[x]
+          R6 (reduce (make-d [[sym (protect Sin)] X]))
+          Ok6 (content-eq R6 [[sym (protect Cos)] X])
+          \\ D[Sin[x^2],x] -> 2 x Cos[x^2]  i.e. Times[2, x, Cos[x^2]] (any order)
+          R7 (reduce (make-d [[sym (protect Sin)] [[sym (protect Power)] X [int 2]]]))
+          Ok7 (d-2x-cos-x2? R7)
+          \\ D[x*Sin[x],x] -> Sin[x] + x Cos[x]
+          R8 (reduce (make-d [[sym (protect Times)] X [[sym (protect Sin)] X]]))
+          Ok8 (d-product-sin? R8)
+          \\ D[f[x],x] with unknown f stays INERT (head still D, never 0)
+          R9 (reduce (make-d [[sym (protect fd)] X]))
+          Ok9 (and (= (head R9) (d-expr)) (not (content-eq R9 [int 0])))
+          Ok (and Ok1 Ok2 Ok3 Ok4 Ok5 Ok6 Ok7 Ok8 Ok9)
+          (do (output "20: x^3=~A x^2+x=~A const=~A Dxx=~A Dyx=~A Sin=~A SinChain=~A Product=~A Inert=~A~%"
+                      Ok1 Ok2 Ok3 Ok4 Ok5 Ok6 Ok7 Ok8 Ok9)
+              (if Ok (output "differentiation (SCUD 20): PASS~%")
+                  (output "differentiation (SCUD 20): FAIL~%"))
+              Ok)))
+
+\\ --- structural acceptance helpers (orderless-robust via Simplify normalization) ---
+\\ D[x^2+x,x] == 2x+1: Simplify and check it equals Plus of {1, Times[2,x]} in any order.
+(define d-plus-2x-1?
+  R -> (let S (reduce [[sym (protect Simplify)] R])
+            (or (content-eq S [[sym (protect Plus)] [int 1] [[sym (protect Times)] [int 2] (dvar)]])
+                (content-eq S [[sym (protect Plus)] [[sym (protect Times)] [int 2] (dvar)] [int 1]]))))
+
+\\ D[Sin[x^2],x] == 2 x Cos[x^2]: Simplify -> Times[2, x, Cos[x^2]] (any arg order).
+(define d-2x-cos-x2?
+  R -> (let S (reduce [[sym (protect Simplify)] R])
+            (term-set-eq? S
+              [[sym (protect Times)] [int 2] (dvar)
+                [[sym (protect Cos)] [[sym (protect Power)] (dvar) [int 2]]]])))
+
+\\ D[x*Sin[x],x] == Sin[x] + x Cos[x].
+(define d-product-sin?
+  R -> (let S (reduce [[sym (protect Simplify)] R])
+            X (dvar)
+            (term-set-eq? S
+              [[sym (protect Plus)]
+                [[sym (protect Sin)] X]
+                [[sym (protect Times)] X [[sym (protect Cos)] X]]])))
+
+\\ head + same arg multiset (orderless-robust comparison for a single compound).
+(define term-set-eq?
+  [H1 | A1] [H2 | A2] -> (and (content-eq H1 H2) (multiset-eq? A1 A2))
+  A B -> (content-eq A B))
+
+(define multiset-eq?
+  [] [] -> true
+  [X | Xs] Ys -> (let Ys2 (ms-remove X Ys)
+                      (if (= Ys2 [notfound]) false (multiset-eq? Xs Ys2)))
+  _ _ -> false)
+
+\\ remove the first element content-eq to X; [notfound] if absent.
+(define ms-remove
+  _ [] -> [notfound]
+  X [Y | Ys] -> (if (content-eq X Y)
+                    Ys
+                    (let R (ms-remove X Ys)
+                         (if (= R [notfound]) [notfound] [Y | R]))))
+
 (define run-all-tests
   -> (let Ign (output "=== shen-cas test harness ===~%")
             Ok (and (run-golden) (run-rejection-tests) (attrs-demo) (run-lfp-tests)
                     (run-analysis-tests) (run-phase1-skeleton) (test-scope-block-fork)
                     (test-backend-seam) (test-correctness-gate) (test-eval-evaluator-wave1)
-                    (test-simplify))
+                    (test-simplify) (test-differentiation))
             (do (if Ok (output "~%ALL PASS~%") (output "~%SOME FAIL~%")) Ok)))
 
 (define test-backend-seam

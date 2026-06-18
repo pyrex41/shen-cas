@@ -15,7 +15,15 @@
 
 \\ Known "globals" / builtins for Phase 1 (expand when db arrives)
 (define phase1-globals
-  -> [(protect Plus) (protect Times) (protect Minus) (protect Divide) (protect Power) (protect If) (protect True) (protect False) (protect List)])
+  -> [(protect Plus) (protect Times) (protect Minus) (protect Divide) (protect Power) (protect If) (protect True) (protect False) (protect List)
+      \\ SCUD 20 Wave 4: calculus + elementary function heads. Every RHS head a
+      \\ calculus rule can emit must be whitelisted here (or LHS-bound) -- this is
+      \\ the static-check surface bindings-cover? enforces at registration.
+      (protect D) (protect Integrate)
+      (protect Sin) (protect Cos) (protect Tan) (protect Sec)
+      (protect Exp) (protect Log) (protect Sqrt)
+      (protect ArcSin) (protect ArcCos) (protect ArcTan)
+      (protect Plus) (protect Times)])
 
 (define known-symbol?
   S -> (element? S (phase1-globals)))
