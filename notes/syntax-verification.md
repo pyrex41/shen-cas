@@ -18,11 +18,17 @@
 Exact integers only (`(int N)`). Rationals postponed.
 Centralize all numeric ops in `num.shen` (affects hash stability + HVM later).
 
-## Hash Representation
+## Hash Representation (Phase 1 decision)
 
-To be chosen in task 4/5.1: portable, stable Merkle (tag+value for atoms; head-hash + ordered arg-hashes for compounds).
+Portable stable Merkle:
+- Atom: (tag . value) e.g. (int . N) or (sym . S) hashed.
+- Compound: (head-hash . (list-of-arg-hashes)) — order matters except after Orderless/Flat canonicalization (applied before hash for declared symbols).
 
-Recommendation candidates (Shen-portable): simple recursive string or list-based hash (e.g. using Shen's `hash` or manual), or embed a small portable fn. Document choice + stability contract here.
+Recommendation: use Shen's built-in hash where available + manual tree walk to a string or integer; or pure list structure fingerprint for determinism across runs. Avoid floating point. Record the exact primitive in store.shen.
+
+Stability contract: same structure + same structural attrs => identical hash. Independent of rule db / basis / evaluation.
+
+(See store.shen 5.1 for impl.)
 
 ## Structural Signature Immutability
 
