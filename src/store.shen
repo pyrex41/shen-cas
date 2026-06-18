@@ -31,8 +31,9 @@
   (sym S) -> (ch (hash-atom "sym" S))
   (int N) -> (ch (hash-atom "int" N))
   [H | Args] -> (let Hh (content-hash H)
-                     Ah (map content-hash Args)
-                     (ch (hash-compound (unwrap-ch Hh) (map unwrap-ch Ah)))))
+                     Ah (canonical-arg-hashes H Args)
+                     (ch (hash-compound (unwrap-ch Hh) (map unwrap-ch Ah))))
+  _ -> (ch (hash-atom "other" 0)))
 
 (define unwrap-ch
   (ch N) -> N)
@@ -53,9 +54,13 @@
 
 (define cas-intern!
   E -> (let H (content-hash E)
-            Node E
-            _ (set *intern-table* (intern-store (unwrap-ch H) Node (value *intern-table*)))
-            Node))
+            Key (unwrap-ch H)
+            Found (intern-lookup Key (value *intern-table*))
+            (if (cons? Found)
+                (hd (tl Found))   \\ return the already-interned node for this content-hash (sharing)
+                (let Node E
+                     _ (set *intern-table* (intern-store Key Node (value *intern-table*)))
+                     Node))))
 
 (define content-eq
   A B -> (= (content-hash A) (content-hash B)))
@@ -70,5 +75,63 @@
 
 (define get-structural-sig
   Sym -> (assoc Sym (value *structural-sigs*)))
+
+\\ --- Structural sig helpers for canonicalization (Orderless/Flat affect hash only in Phase 1 skeleton) ---
+\\ Per notes/syntax-verification.md §4 and design §5.1: sigs are immutable creation facts;
+\\ content hash must be stable and db-independent. Compare via str names to avoid load-order free-var issues.
+(define structural-sig-contains-name?
+  Sym Name -> (let Sig (get-structural-sig Sym)
+                   (and (cons? Sig)
+                        (element? Name (map (/. A (str A)) (tl Sig))))))
+
+(define has-flat?
+  Sym -> (structural-sig-contains-name? Sym "flat"))
+
+(define has-orderless?
+  Sym -> (structural-sig-contains-name? Sym "orderless"))
+
+(define sym?
+  X -> (and (cons? X) (symbol? (hd X)) (= (str (hd X)) "sym")))
+
+(define sym-name
+  X -> (hd (tl X)) where (sym? X)
+  _ -> (error "sym-name: not a sym"))
+
+(define headed-by-sym?
+  S X -> (and (sym? X) (= (hd (tl X)) S)))
+
+\\ Return list of content-hash values for args, with Flat inlining and Orderless sorting applied when sig present.
+(define canonical-arg-hashes
+  H Args ->
+    (if (sym? H)
+        (let S (sym-name H)
+             Raw (if (has-flat? S)
+                     (flatten-args-for-hash S Args)
+                     (map content-hash Args))
+             (if (has-orderless? S)
+                 (sort-hashes Raw)
+                 Raw))
+        (map content-hash Args)))
+
+(define flatten-args-for-hash
+  S [] -> []
+  S [A | Rest] ->
+    (if (headed-by-sym? S A)
+        (append (flatten-args-for-hash S (tl A))
+                (flatten-args-for-hash S Rest))
+        (cons (content-hash A) (flatten-args-for-hash S Rest))))
+
+(define sort-hashes
+  Hs -> (sort-hashes-by (/. Ha Hb (<= (unwrap-ch Ha) (unwrap-ch Hb))) Hs))
+
+(define sort-hashes-by
+  _ [] -> []
+  Pred [H | Hs] -> (insert-by Pred H (sort-hashes-by Pred Hs)))
+
+(define insert-by
+  _ X [] -> [X]
+  Pred X [Y | Ys] -> (if (Pred X Y)
+                         [X Y | Ys]
+                         [Y | (insert-by Pred X Ys)]))
 
 (output "store.shen loaded (Merkle hash per task-4 policy, intern, eq, sig stub).~%")

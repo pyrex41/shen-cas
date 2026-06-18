@@ -112,32 +112,111 @@
   _ -> (trap-error
           (do (output "~%=== attrs basic test/demo (SCUD 9.1, plan Phase 2 acceptance) ===~%")
               \\ declare and inspect sig (structural only; controls validated but not stored here)
-              (let _ (declare-structural Plus [flat orderless])
-                   Sig (get-structural-sig Plus)
+              (let _ (declare-structural (protect Plus) [(protect flat) (protect orderless)])
+                   Sig (get-structural-sig (protect Plus))
                    (do (output "  declared-structural Plus [flat orderless]~%")
                        (output "  get-structural-sig Plus -> ~A~%" Sig)
                        true))
               \\ compounds (skeleton; hash sharing deferred until store canonical consults sigs)
-              (let H (sym Plus)
+              (let H (sym (protect Plus))
                    C1 (compound H [(int 1) (int 2)])
                    C2 (compound H [(int 2) (int 1)])
                    (do (output "  created Plus compounds via expr: ~A , ~A~%" (pretty-expr C1) (pretty-expr C2))
                        (output "  (note: after canonical extension for flat/orderless, these will share content hash)~%")
                        true))
               \\ verify rejections for bad-attr combos (plan.md acceptance + golden REJECTs)
-              (let _ (trap-error (declare-symbol Plus [hold-all hold-first])
+              (let _ (trap-error (declare-symbol (protect Plus) [(protect hold-all) (protect hold-first)])
                                  (/. _ (do (output "  declare rejected hold-all + hold-first (as expected)~%") true)))
-                   _ (trap-error (declare-structural Plus [hold-all])
+                   _ (trap-error (declare-structural (protect Plus) [(protect hold-all)])
                                  (/. _ (do (output "  declare-structural rejected non-structural (hold-all)~%") true)))
-                   _ (trap-error (declare-symbol Plus [listable (intern "hold-all")])
+                   _ (trap-error (declare-symbol (protect Plus) [(protect listable) (intern "hold-all")])
                                  (/. _ (do (output "  declare rejected listable + hold-all (as expected)~%") true)))
-                   _ (trap-error (declare-symbol Plus [foo])
+                   _ (trap-error (declare-symbol (protect Plus) [(protect foo)])
                                  (/. _ (do (output "  declare rejected unknown attr (via consistent-attrs?)~%") true)))
                    (output "  (bad-attr rejections verified per plan; see also rejection-fixtures and golden/arith-21.4.txt)~%")
                    true)
               true)
           (/. E (do (output "  (attrs demo skipped or partial; context lacks full load or prior declare: ~A)~%" E)
                     true))))
+
+\\ --- Phase 1 skeleton exercises (added to harness; keeps Phase 0 skeleton intact) ---
+\\ Exercise current reduce + register-rule, explicit bindings-cover?, store-mediated hash sharing,
+\\ and idempotence on golden no-ops (trivial) + kernel no-ops.
+\\ References:
+\\   notes/syntax-verification.md §4 (hash sharing req for Plus after Orderless/Flat; immutable structural sig),
+\\   notes/syntax-verification.md §5 (Phase 1 bindings-cover? policy + phase1-known + register gate),
+\\   golden/arith-21.4.txt (no-op cases like symbols and [x / x] are explicit idempotence tests; REJECTs).
+
+(define phase1-explicit-bindings-cover-examples
+  _ -> (let R1 (rule [(sym Plus) (int 0) (named x (blank))] (named x (blank)))
+            R2 (rule [(sym Plus) (named x (blank)) (int 0)] (named x (blank)))
+            C1 (bindings-cover? (rule-lhs R1) (rule-rhs R1))
+            C2 (bindings-cover? (rule-lhs R2) (rule-rhs R2))
+            BadCov (bindings-cover? (named x (blank)) (sym y))  \\ y not bound and not known global
+            (do (output "Phase1: explicit bindings-cover? on 0+ rule: ~A~%" C1)
+                (output "Phase1: explicit bindings-cover? on +0 rule: ~A~%" C2)
+                (output "Phase1: explicit bindings-cover? on unbound-rhs example: ~A (expect false)~%" BadCov)
+                (and C1 C2 (not BadCov)))))
+
+(define phase1-use-register-reduce
+  _ -> (do (register-rule (rule [(sym Plus) (int 0) (named x (blank))] (named x (blank))))
+           (register-rule (rule [(sym Plus) (named x (blank)) (int 0)] (named x (blank))))
+           (let E [(sym Plus) (int 2) (int 0)]
+                Got (reduce E)
+                (do (output "Phase1: used register-rule + reduce: ~A -> ~A~%" E Got)
+                    true))))
+
+(define phase1-content-hash-sharing-orderless-flat
+  _ -> (let _ (if (get-structural-sig Plus)
+                  true
+                  (declare-structural Plus [orderless flat]))
+            E1 [(sym Plus) (int 1) (int 2)]
+            E2 [(sym Plus) (int 2) (int 1)]
+            H1 (content-hash E1)
+            H2 (content-hash E2)
+            Eq (content-eq E1 E2)
+            (do (output "Phase1: declared Plus orderless+flat (store sig path via attrs)~%")
+                (output "Phase1: content-hash sharing for Orderless? ~A (h1=~A h2=~A)~%" Eq H1 H2)
+                (let F1 [(sym Plus) [(sym Plus) (int 1) (int 2)] (int 3)]
+                     F2 [(sym Plus) (int 1) [(sym Plus) (int 2) (int 3)]]
+                     Feq (content-eq F1 F2)
+                     (do (output "Phase1: content-hash sharing for Flat nested? ~A~%" Feq)
+                         (and Eq Feq))))))
+
+(define phase1-golden-noop-idemp-trivial
+  _ -> (let Noops (filter (/. C (let [In -> Exp] C (= In Exp))) (golden-cases))
+            (do (output "Phase1: idempotence under trivial-reduce for golden no-op cases (~A) [see golden/arith-21.4.txt]~%" (length Noops))
+                (map (/. C (let [In -> Exp] C
+                              G (trivial-reduce In)
+                              G2 (trivial-reduce G)
+                              Ok (= G G2)
+                              (do (output "  no-op ~A : trivial-reduce idempotent=~A~%" In Ok) Ok)))
+                     Noops)
+                true)))
+
+(define phase1-kernel-idempotence-noop
+  _ -> (let E1 (sym x)
+            E2 [(sym bar) (int 99)]
+            R1 (reduce E1)
+            R2 (reduce E2)
+            R1b (reduce R1)
+            R2b (reduce R2)
+            Ok1 (and (= E1 R1) (= R1 R1b))
+            Ok2 (and (= E2 R2) (= R2 R2b))
+            (do (output "Phase1: kernel reduce (current) idempotent on no-op E1? ~A~%" Ok1)
+                (output "Phase1: kernel reduce (current) idempotent on no-op E2? ~A~%" Ok2)
+                (and Ok1 Ok2))))
+
+(define run-phase1-skeleton
+  _ -> (let _ (output "~%=== Phase 1 skeleton exercises ===~%")
+            b (phase1-explicit-bindings-cover-examples [])
+            u (phase1-use-register-reduce [])
+            h (phase1-content-hash-sharing-orderless-flat [])
+            i1 (phase1-golden-noop-idemp-trivial [])
+            i2 (phase1-kernel-idempotence-noop [])
+            All (and b u h i1 i2)
+            (do (output "Phase 1 skeleton: ~A~%" (if All "PASS" "FAIL"))
+                All)))
 
 \\ --- SCUD 11.3: least-fixpoint loop detection tests (pure, no db) ---
 \\ From ADR §5 + plan Phase 4 + tasks.scg 11.3
@@ -172,12 +251,13 @@
                 Ok)))
 
 (define run-all-tests
-  -> (let _ (output "=== shen-cas test harness (Phase 0 + SCUD 11.3) ===~%")
+  -> (let _ (output "=== shen-cas test harness (Phase 0 + Phase 1 skeleton) ===~%")
           g (run-golden [])
           r (run-rejection-tests [])
           a (attrs-demo [])
           l (run-lfp-tests [])
-          (if (and g r a l)
+          p (run-phase1-skeleton [])
+          (if (and g r a l p)
               (do (output "~%ALL PASS~%") true)
               (do (output "~%SOME FAIL~%") false))))
 
