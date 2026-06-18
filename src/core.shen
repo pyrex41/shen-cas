@@ -69,7 +69,7 @@
   Db _ -> Db)
 
 (define reduce
-  E -> ((current-reduce) E))
+  E -> (reduce-ref E))
 
 (define try-reduce-db
   Db E [] -> E
@@ -97,7 +97,7 @@
                         NF))))
 
 (define normal-form
-  E -> ((current-normal-form) E))
+  E -> (normal-form-ref E))
 
 (define demo-register-arith
   -> (do (load "boot/arith.shen") true))

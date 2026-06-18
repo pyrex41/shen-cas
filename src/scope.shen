@@ -45,7 +45,7 @@
 
 (define scope-alpha-canonicalize
   [ [sym module] Vars Body ] ->
-    (let Bare (map ensure-bare-symbol Vars)
+    (let Bare (map (/. V (ensure-bare-symbol V)) Vars)
          Canon (generate-canon-bare (length Bare))
          NormBody (scope-alpha-canonicalize (rename-in-expr Bare Canon Body))
          [ [sym module] Canon NormBody ])
@@ -54,17 +54,18 @@
          Canon (hd (generate-canon-bare 1))
          NormBody (scope-alpha-canonicalize (rename-in-expr [Bare] [Canon] Body))
          [ [sym with] Canon Val NormBody ])
-  [H | Args] -> [(scope-alpha-canonicalize H) | (map scope-alpha-canonicalize Args)]
+  [H | Args] -> [(scope-alpha-canonicalize H) | (map (/. A (scope-alpha-canonicalize A)) Args)]
   E -> E)
 
-(define alpha-canonicalize scope-alpha-canonicalize)
+(define alpha-canonicalize
+  E -> (scope-alpha-canonicalize E))
 
 \\ --- Scoping forms ---
 
 \\ Module: lexical, hygienic rename + alpha-canon (for hash sharing of equiv bodies).
 (define module
   Vars Body ->
-    (let Bare (map ensure-bare-symbol Vars)
+    (let Bare (map (/. V (ensure-bare-symbol V)) Vars)
          Canon (generate-canon-bare (length Bare))
          NormBody (alpha-canonicalize (rename-in-expr Bare Canon Body))
          (alpha-canonicalize [ [sym module] Canon NormBody ])))
