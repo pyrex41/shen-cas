@@ -5,7 +5,7 @@
 \\ - finite-set lfp + reach + rule-dependency-loops for cross-rule loops (this task)
 \\
 \\ All helpers plain Shen (no Prolog). Pure, cycle-safe via set lfp over finite heads.
-\\ direct-deps / db integration stubbed here; full when db.shen + symbol-entry-view ready.
+\\ direct-deps now scans real db rule datoms (RHS mentioned heads); full integration per 11.3.
 \\ Testable on small edge graphs via helpers below.
 \\
 \\ Usage for loops (once integrated):
@@ -83,15 +83,38 @@
 (define heads-in-cycles
   SelfEdges -> (dedup (my-map (/. E (head E)) SelfEdges)))
 
-\\ --- direct-deps from RHS symbols (full version when db ready) ---
-\\ Stub: returns no edges today. Later:
-\\   for each rule in db for head H, walk RHS exprs, collect head symbols mentioned,
-\\   emit [H MentionedHead] for each (depth-1 direct).
+\\ --- direct-deps from RHS symbols (full version for db) ---
+\\ For each rule datom, extract the rule rep, walk its RHS expr to collect mentioned head symbols,
+\\ emit [H MentionedHead] edges (depth-1 direct deps).
+\\ Robust to current skeleton rep ( [sym S], bare, lists ) and future real exprs.
 \\ (See design: "RHS mentions H2")
-\\ (declare direct-deps [A --> (list (list B))])  ; optional typing; omitted (list undefined at load in skeleton)
+
+(define rule-datom?
+  D -> (and (cons? D) (= (length D) 4) (element? (hd (tl D)) [own down up])))
+
+(define rhs-of-rep
+  [rule _ R] -> R
+  R -> R)
+
+(define head-symbol-from-expr
+  [sym S] -> [S]
+  S -> [S] where (symbol? S)
+  [H | Args] -> (append (head-symbol-from-expr H) (my-mapcan (/. X (head-symbol-from-expr X)) Args))
+  _ -> [])
+
+(define collect-mentioned-heads
+  E -> (dedup (head-symbol-from-expr E)))
+
+(define deps-from-rule-datom
+  D -> (let Rep (hd (tl (tl D)))
+            H (hd D)
+            Rhs (rhs-of-rep Rep)
+            Ms (collect-mentioned-heads Rhs)
+            (my-map (/. M [H M]) Ms)))
 
 (define direct-deps
-  _ -> [])   \\ TODO: integrate with db.shen when symbol-entry-view / rules available
+  Db -> (let Ds (db-datoms Db)
+             (dedup (my-mapcan (/. D (if (rule-datom? D) (deps-from-rule-datom D) [])) Ds))))
 
 \\ Pure helper for direct deps given pairs of (Head . [RhsSym ...])
 \\ Useful for tests and future impl of direct-deps.
@@ -135,4 +158,3 @@
 
 (define oneid-no-unary _ -> [])
 
-\\ (princ ...) omitted: I/O names can be environment-sensitive under -e/-l in this Shen; messages emitted by load harness elsewhere.
