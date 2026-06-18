@@ -21,11 +21,16 @@
 
 \\ Known "globals" / builtins for Phase 1 (expand when db arrives)
 (define phase1-globals
-  -> [(sym Plus) (sym Times) (sym Minus) (sym Divide) (sym Power)
-      (sym If) (sym True) (sym False) (sym List) ])
+  -> [Plus Times Minus Divide Power If True False List])  ; bare symbols; free-symbols emits bare S
 
 (define known-symbol?
   S -> (element? S (phase1-globals)))
+
+(define rule-lhs
+  (rule L _) -> L)
+
+(define rule-rhs
+  (rule _ R) -> R)
 
 (define bindings-cover?
   LHS RHS ->
@@ -43,9 +48,10 @@
 (set *rules* [])
 
 (define register-rule
-  R -> (if (checked-rule? R)
+  R -> (if (and (checked-rule? R)
+                (bindings-cover? (rule-lhs R) (rule-rhs R)))
            (set *rules* (adjoin R (value *rules*)))
-           (error "register-rule: not a checked-rule ~A" R)))
+           (error "register-rule: not a checked-rule or bindings not covered ~A" R)))
 
 (define checked-rule? 
   (rule _ _) -> true

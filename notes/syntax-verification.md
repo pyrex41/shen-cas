@@ -1,5 +1,7 @@
 # 4th Edition Shen Syntax Verification (Phase 0 / SCUD task 4)
 
+**Current skeleton status (as of latest):** Policies followed in src/ (store hash per §3, num int-only, attrs structural stub, rule phase1-known + bindings-cover?, pattern reserved ctors + seq restriction, expr datatype). Full runtime gates / canonical extend in Phase 2. See load.shen for current order.
+
 **Date:** 2026-06-18 (task 4 complete)
 **Status:** Actionable; re-verify forms in running 4th-ed Shen before Phase 1 datatype impl.
 
@@ -174,7 +176,7 @@ Every `expr` / `pattern` (and later rules) has a content-hash computed **after**
 **Algorithm (recursive, post-canonical):**
 
 ```
-Atom:     [Tag Val]      → (hash (portable-atom-string Tag Val) 1000000007)
+Atom:     (sym S) or (int N) or (real R)  → (hash (portable-atom-string Tag Val) 1000000007)
 Compound: [H | ArgHashes] → (hash (cn (str H-hash)
                                      (fold-left cn "" (map str ArgHashes)))
                                   1000000007)
@@ -184,6 +186,7 @@ Compound: [H | ArgHashes] → (hash (cn (str H-hash)
 - `hash` = Shen primitive `(hash E N) → 1..N` (deterministic for same input within one Shen impl).
 - Order of arg-hashes is the *canonical* (post-Orderless sort / Flat flatten) order.
 - Alpha: binders (Module/With) renamed to canonical form (de Bruijn or fresh gensym sequence) *before* hash.
+  Preference (for Phase 4 scope.shen): gensym-sequence + alpha-normalization in content-hash (simpler than de Bruijn for Shen lists). Tie to hygienic renaming.
 
 **Interning:** content-store table maps hash (or (hash, canonical-rep) for safety) → interned node. Construction always interns.
 
@@ -236,9 +239,9 @@ In Phase 1 (pre-`db.shen`):
 
 ```
 (define phase1-known-symbols ->
-  [Plus Times Power Subtract Divide   ; from 21.4 + arith bootstrap
-   0 1                               ; integer "constants" (as symbols? careful: ints are (int N))
+  [Plus Times Power Subtract Divide   ; from 21.4 + arith bootstrap (bare symbols)
    ; plus any kernel heads needed for expr construction in tests
+   ; NOTE: numeric literals are (int N) / (real R); free-symbols only emits from (sym S)
    ])
 ```
 
@@ -247,6 +250,7 @@ Notes:
 - Int constants are `(int N)` not `(sym 0)`; free-symbols only collects from `sym`.
 - If a RHS contains a bare user symbol that is not a pattern var and not whitelisted, reject (catches real unbound-var bugs).
 - **Fallback for side-condition:** If Shen 4th datatype cannot accept `(bindings-cover LHS RHS)` (or `(bindings-cover? ...)` verified) directly as premise, implement check inside `register-rule` (or equivalent in Phase 1) before any db assert. Still definition-time; "nothing ill-formed reaches the database."
+  Even with datatype declared, runtime `register-rule` must invoke `bindings-cover?` (current rule.shen shape-only; tighten to full gate).
 
 When `db.shen` + query arrives (Phase 2/3): replace whitelist with live query over registered symbols for the basis.
 
@@ -282,7 +286,17 @@ Sketch datatypes (expr, pattern, rewrite-rule, ...):
 
 **Action before Phase 1:**
 - When transcribing `expr` / `pattern` / `compound-pattern` / `checked-rule` / `valid-attrs` into code, prefer 4th-ed surface forms shown in book excerpts.
-- Add a tiny self-test: `(datatype toy ... (my-pred X) verified >> ... )` once harness loads.
+- Add a tiny self-test (example below) once harness loads.
+
+Example toy (pasteable into harness for Phase 1):
+```
+(datatype toy
+  X : symbol;
+  (my-pred X) verified
+  _______________________
+  (toy X) : verified-toy;
+)
+```
 - If bindings-cover side-cond rejected by checker, switch to registration-gate + keep datatype rule minimal.
 - Record runtime results here: <pending load of actual Shen 4th>.
 
@@ -291,10 +305,14 @@ Sketch datatypes (expr, pattern, rewrite-rule, ...):
 - `store.shen`: implement `content-hash`, intern, canonicalize (alpha + structural sig only in Phase 1).
 - `expr.shen`: `(datatype expr ...)` in 4th-ed style; constructors call store.
 - `pattern.shen`: split `pattern` / `seq-pattern` load-bearing; use verified style.
+  Reserved ctors: current impl uses list forms with non-symbol heads (e.g. `(blank)`, `(named Name P)`) + helper fns to avoid expr collision (closes plan open Q; see pattern.shen for compound-pattern rules).
 - `rule.shen`: `extract-bindings`, `free-symbols`, `bindings-cover?` (with phase1-known), registration gate.
 - `num.shen`: stub for `(int N)` only; `+` etc. wrappers.
 - Tests: exercise hash sharing for Orderless/Flat; rejection of unbound RHS using the policy; idempotence of trivial reduce.
 - All hashes / canonical forms must be **db-independent**.
+- Note: Phase 1 uses naive in-memory `*rules*` list (core.shen) before immutable db (Phase 3). Harness/golden cite this for early testing.
+
+**Phase boundary note (reconciliation with plan.md):** Structural canonicalization (Orderless/Flat) and immutable sig registration are stubbed early here for hash stability (Phase 1 per design). Full `attrs.shen` declaration syntax, consistency checks, and "extend store canonicalization" are Phase 2 per plan.md. Current split (store stub + attrs skeleton) is intentional for early content-addressing; full integration in Phase 2.
 
 ## 8. Open Items / Risks (carry to Phase 1)
 
@@ -302,6 +320,7 @@ Sketch datatypes (expr, pattern, rewrite-rule, ...):
 - `hash` determinism + collision behaviour across Shen ports (sbcl vs scheme vs ...).
 - Exact sequent punctuation (>> vs = vs bare) — match runtime.
 - `prolog?` pushing typed pattern values — ensure no ill-typed fabrication at Prolog boundary.
+- Tabling in installed Shen Prolog (plan open Q; current ADR-001 design does not rely on it for dispatch or analysis; confirm before any recursive Prolog use in matcher).
 
 **End of task 4 documentation.** Ready for Phase 1 (content store + datatypes + non-seq matcher).
 
