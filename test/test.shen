@@ -436,11 +436,62 @@
                   (output "Wave 1 evaluator (SCUD 17): FAIL~%"))
               Ok)))
 
+\\ === SCUD 19 Wave 3: simplification / canonical form ===
+\\ Rule-based n-ary zero + power identities (boot/simplify), constant folding
+\\ (Wave-1 num), and the audited non-rule collect-like-terms pass (Simplify head).
+\\ Plus corpus idempotence: reduce(reduce E) content-eq reduce E for every golden.
+(define idemp-on-golden?
+  [In _] -> (let R1 (reduce In)
+                 R2 (reduce R1)
+                 (content-eq R1 R2))
+  _ -> true)
+
+(define test-simplify
+  -> (let Ign (demo-register-simplify)
+          Ign2 (output "~%=== SCUD 19 simplify ===~%")
+          \\ identity rules: x^1->x, x^0->1, x*0->0 ; 0^0 stays INERT ; 0^2->0
+          P1 (reduce [[sym (protect Power)] [sym (protect xs)] [int 1]])
+          Ok1 (content-eq P1 [sym (protect xs)])
+          P0 (reduce [[sym (protect Power)] [sym (protect xs)] [int 0]])
+          Ok0 (content-eq P0 [int 1])
+          ZZ (reduce [[sym (protect Power)] [int 0] [int 0]])
+          OkZZ (= (head ZZ) [sym (protect Power)])
+          Z2 (reduce [[sym (protect Power)] [int 0] [int 2]])
+          OkZ2 (content-eq Z2 [int 0])
+          T0 (reduce [[sym (protect Times)] [sym (protect xs)] [int 0]])
+          OkT0 (content-eq T0 [int 0])
+          \\ n-ary absorbing zero: Times[a,0,b] -> 0
+          NZ (reduce [[sym (protect Times)] [sym (protect aa)] [int 0] [sym (protect bb)]])
+          OkNZ (content-eq NZ [int 0])
+          \\ Plus[Times[1,Cos[x]],Times[0,Sin[x]]] -> Cos[x]
+          E (reduce [[sym (protect Plus)]
+                      [[sym (protect Times)] [int 1] [[sym (protect Cos)] [sym (protect xs)]]]
+                      [[sym (protect Times)] [int 0] [[sym (protect Sin)] [sym (protect xs)]]]])
+          OkE (content-eq E [[sym (protect Cos)] [sym (protect xs)]])
+          \\ collect-like-terms via Simplify head: 3x+2x -> Times[5,x]
+          CL (reduce [[sym (protect Simplify)]
+                       [[sym (protect Plus)]
+                         [[sym (protect Times)] [int 3] [sym (protect xs)]]
+                         [[sym (protect Times)] [int 2] [sym (protect xs)]]]])
+          OkCL (content-eq CL [[sym (protect Times)] [int 5] [sym (protect xs)]])
+          \\ gather equal Times bases into Power: x*x -> x^2
+          XX (reduce [[sym (protect Simplify)]
+                       [[sym (protect Times)] [sym (protect xs)] [sym (protect xs)]]])
+          OkXX (content-eq XX [[sym (protect Power)] [sym (protect xs)] [int 2]])
+          \\ corpus idempotence: reduce(reduce E) = reduce E over every golden case
+          Idem (every (/. C (idemp-on-golden? C)) (golden-cases))
+          Ok (and Ok1 Ok0 OkZZ OkZ2 OkT0 OkNZ OkE OkCL OkXX Idem)
+          (do (output "19: x^1=~A x^0=~A 0^0-inert=~A 0^2=~A x*0=~A nary-zero=~A Plus-id=~A 3x+2x=~A x*x=~A idemp=~A~%"
+                      Ok1 Ok0 OkZZ OkZ2 OkT0 OkNZ OkE OkCL OkXX Idem)
+              (if Ok (output "simplify (SCUD 19): PASS~%") (output "simplify (SCUD 19): FAIL~%"))
+              Ok)))
+
 (define run-all-tests
   -> (let Ign (output "=== shen-cas test harness ===~%")
             Ok (and (run-golden) (run-rejection-tests) (attrs-demo) (run-lfp-tests)
                     (run-analysis-tests) (run-phase1-skeleton) (test-scope-block-fork)
-                    (test-backend-seam) (test-correctness-gate) (test-eval-evaluator-wave1))
+                    (test-backend-seam) (test-correctness-gate) (test-eval-evaluator-wave1)
+                    (test-simplify))
             (do (if Ok (output "~%ALL PASS~%") (output "~%SOME FAIL~%")) Ok)))
 
 (define test-backend-seam

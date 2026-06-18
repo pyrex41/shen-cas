@@ -160,8 +160,14 @@
   "Times"  Args -> [some (num-prod [int 1] Args)]
   "Minus"  [A B] -> [some (num-sub A B)]
   "Divide" [A B] -> (num-apply-div A B)
-  "Power"  [A [int E]] -> [some (num-pow A E)]
+  "Power"  [A [int E]] -> (num-apply-pow A E)
   _ _ -> [none])
+
+\\ 0^0 must stay INERT (decline) rather than fold to 1 (SCUD 19 simplify).
+(define num-apply-pow
+  A E -> (if (and (num-eq? A [int 0]) (= E 0))
+             [none]
+             [some (num-pow A E)]))
 
 (define num-apply-div
   A B -> (if (num-eq? B [int 0]) [none] [some (num-div A B)]))

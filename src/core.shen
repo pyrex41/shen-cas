@@ -186,18 +186,27 @@
 \\ ----------------------------------------------------------------------------
 \\ Rule application: first matching rule wins; substitute then return new expr
 \\ (the driver re-evaluates). try-reduce-db does NOT recurse itself.
+\\ SCUD 19: fuel cap (*max-rule-tries*) bounds the number of candidate rules
+\\ attempted at one node in one step, so a pathologically large candidate list
+\\ cannot stall a step; it warns and returns the expr unchanged (stays inert).
 \\ ----------------------------------------------------------------------------
+(set *max-rule-tries* 2000)
+
 (define try-reduce-db
-  Db E [] -> E
-  Db E [R | Rest] ->
+  Db E Rules -> (try-reduce-db-fuel Db E Rules (value *max-rule-tries*)))
+
+(define try-reduce-db-fuel
+  Db E [] _ -> E
+  Db E [R | Rest] 0 -> (do (output "WARNING: *max-rule-tries* exceeded at ~A; leaving inert~%" (pretty-expr E)) E)
+  Db E [R | Rest] N ->
     (if (checked-rule? R)
         (let LHS (rule-lhs R)
              RHS (rule-rhs R)
              M (match LHS E)
              (if (match-some? M)
                  (substitute (match-unwrap M) RHS)
-                 (try-reduce-db Db E Rest)))
-        (try-reduce-db Db E Rest)))
+                 (try-reduce-db-fuel Db E Rest (- N 1))))
+        (try-reduce-db-fuel Db E Rest (- N 1))))
 
 (define rule-lhs [rule L _] -> L)
 (define rule-rhs [rule _ R] -> R)
@@ -245,6 +254,12 @@
 
 (define demo-register-arith
   -> (do (load "boot/arith.shen") true))
+
+\\ SCUD 19: load the simplification identity rules (after arith, which declares
+\\ Plus/Times/Power). collect-like-terms (Simplify head) is wired in calc-helpers,
+\\ not a register-rule, so it needs no loader.
+(define demo-register-simplify
+  -> (do (demo-register-arith) (load "boot/simplify.shen") true))
 
 (define demo-reduce
   E -> (let Ign (demo-register-arith)

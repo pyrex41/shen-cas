@@ -33,11 +33,19 @@
   [[named Name [blank-null-seq]] | Rest] -> (+ 1 (count-seq-vars Rest))
   [X | Rest] -> (count-seq-vars Rest))
 
+\\ count non-seq (anchoring) pattern elements; a literal/blank between seq vars
+\\ bounds the search, so it is NOT the real combinatorial blowup case.
+(define count-anchors
+  PArgs -> (- (length PArgs) (count-seq-vars PArgs)))
+
+\\ SCUD 19: only warn on the genuine unbounded blowup -- >1 seq var with NO
+\\ anchoring element (e.g. Times[s___,t___]). Anchored patterns like
+\\ Times[s___,0,t___] are bounded by the literal and run quietly.
 (define ac-blowup-warning
   Head PArgs ->
     (if (and (ac-head-has-flat? Head) (ac-head-has-orderless? Head)
-             (> (count-seq-vars PArgs) 1))
-        (do (output "WARNING: AC blowup risk for ~A (Flat+Orderless + >1 seq var)~%" Head)
+             (and (> (count-seq-vars PArgs) 1) (= (count-anchors PArgs) 0)))
+        (do (output "WARNING: AC blowup risk for ~A (Flat+Orderless + >1 unanchored seq var)~%" Head)
             true)
         true))
 
