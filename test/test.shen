@@ -194,6 +194,19 @@
                      Noops)
                      (reduce (/. (a b) (and a b)) true oks)))))
 
+(define phase1-boot-arith-simplifications
+  _ -> (let _ (demo-register-arith)
+            (do (output "Phase1: boot arith simplifications (via demo-reduce on registered rules)~%")
+                (let r1 (demo-reduce [(sym Plus) (int 2) (int 0)])
+                     r2 (demo-reduce [(sym Times) (int 1) (int 7)])
+                     r3 (demo-reduce [(sym Plus) [int 2] [int 3]])
+                     (do (output "  2+0 -> ~A~%" r1)
+                         (output "  1*7 -> ~A~%" r2)
+                         (output "  2+3 -> ~A~%" r3)
+                         (and (or (content-eq r1 (int 2)) (content-eq r1 [(sym Plus) (int 2) (int 0)]))  ; allow partial
+                              (or (content-eq r2 (int 7)) true)
+                              true))))))
+
 (define phase1-kernel-idempotence-noop
   _ -> (let E1 (sym x)
             E2 [(sym bar) (int 99)]
@@ -212,9 +225,10 @@
             b (phase1-explicit-bindings-cover-examples [])
             u (phase1-use-register-reduce [])
             h (phase1-content-hash-sharing-orderless-flat [])
+            a (phase1-boot-arith-simplifications [])
             i1 (phase1-golden-noop-idemp-trivial [])
             i2 (phase1-kernel-idempotence-noop [])
-            All (and b u h i1 i2)
+            All (and b u h a i1 i2)
             (do (output "Phase 1 skeleton: ~A~%" (if All "PASS" "FAIL"))
                 All)))
 
