@@ -22,15 +22,19 @@
 (define rule-lhs (rule L _) -> L)
 (define rule-rhs (rule _ R) -> R)
 
-\\ Naive registration of a few demo rules for testing the harness later
-\\ (real ones will come from boot/ and checked registration)
-
-\\ Example: x + 0 -> x   (but without Orderless yet)
-\\ For skeleton we register simple literal rules.
-
+\\ Naive registration of a few demo rules for testing
 (define demo-register-arith
-  -> (do (register-rule (rule (int 0) (int 0)))   \\ trivial
-         (register-rule (rule [(sym Plus) (int 0) (blank)] (blank)))  \\ very rough
-         true))
+  -> (do 
+       (register-rule 
+         (rule [(sym Plus) (int 0) (named x (blank))]
+               (named x (blank))))
+       (register-rule 
+         (rule [(sym Plus) (named x (blank)) (int 0)]
+               (named x (blank))))
+       true))
+
+(define demo-reduce
+  E -> (let _ (demo-register-arith)
+            (reduce E)))
 
 (princ "core.shen (naive reduce) loaded.~%")
