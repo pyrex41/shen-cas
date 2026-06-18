@@ -17,13 +17,13 @@
   [H | Args] : expr; )
 
 (define sym
-  S -> (intern! (make-sym S)))   \\ via store (stubbed)
+  S -> (cas-intern! (make-sym S)))   \\ via store (stubbed)
 
 (define int
-  N -> (intern! (make-int N)))
+  N -> (cas-intern! (make-int N)))
 
 (define compound
-  H Args -> (intern! (make-compound H Args)))
+  H Args -> (cas-intern! (make-compound H Args)))
 
 (define pretty-expr
   (sym S) -> S
@@ -31,4 +31,4 @@
   [H | Args] -> [(pretty-expr H) | (map pretty-expr Args)]
   E -> E)
 
-(princ "expr.shen loaded (datatypes + store constructors).~%")
+(output "expr.shen loaded (datatypes + store constructors).~%")

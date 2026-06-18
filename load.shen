@@ -5,13 +5,13 @@
 (load "src/expr.shen")
 (load "src/pattern.shen")
 (load "src/num.shen")
-\\ (load "src/attrs.shen")   ; in progress by agent
 (load "src/rule.shen")
+(load "src/attrs.shen")
 (load "src/match.shen")
 (load "src/core.shen")
 (load "src/match-seq.shen")
 \\ (load "src/match-ac.shen") ; not yet
-\\ (load "src/db.shen")       ; in progress by agent
+\\ (load "src/db.shen")
 \\ (load "src/query.shen")
 \\ (load "src/scope.shen")
 \\ (load "src/warn.shen")
@@ -22,5 +22,5 @@
 \\ (load "boot/arith.shen")
 \\ etc.
 
-(princ "shen-cas loaded (skeleton). See plan.md and test.shen.~%")
+(output "shen-cas loaded (skeleton). See plan.md and test.shen.~%")
 (load "test/test.shen")

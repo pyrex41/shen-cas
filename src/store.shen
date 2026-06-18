@@ -47,11 +47,11 @@
 (define make-compound
   H Args -> [H | Args])
 
-(define intern
+(define cas-intern
   E -> (let H (content-hash E)
             (intern-lookup (unwrap-ch H) (value *intern-table*))))
 
-(define intern!
+(define cas-intern!
   E -> (let H (content-hash E)
             Node E
             _ (set *intern-table* (intern-store (unwrap-ch H) Node (value *intern-table*)))
@@ -71,4 +71,4 @@
 (define get-structural-sig
   Sym -> (assoc Sym (value *structural-sigs*)))
 
-(princ "store.shen loaded (Merkle hash per task-4 policy, intern, eq, sig stub).~%")
+(output "store.shen loaded (Merkle hash per task-4 policy, intern, eq, sig stub).~%")

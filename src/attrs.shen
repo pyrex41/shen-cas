@@ -1,62 +1,132 @@
-\\ attrs.shen - structural vs control attributes + consistency (Phase 2)
-\\ Structural attrs (Flat, Orderless, OneIdentity) are immutable symbol-creation facts
-\\ (see notes/syntax-verification.md task 4 + design §5.1).
-\\ They affect store canonicalization before hashing.
-\\ Control attrs (Hold*) are mutable db facts.
+\\ attrs.shen - structural vs control attributes, consistency checks, explicit declaration syntax (SCUD 9.1)
+\\ Clean module per design.md, sketch.md §5, plan.md Phase 2.
+\\
+\\ Structural attributes (immutable; part of symbol's creation-time signature;
+\\   affect content canonicalization in store before hashing; never flipped):
+\\     flat, orderless, one-identity
+\\
+\\ Control / evaluation attributes (freely mutable facts in later db):
+\\     hold-all, hold-first, hold-rest, listable
+\\
+\\ consistent? enforces:
+\\   - reject hold-all + (hold-first | hold-rest)
+\\   - reject listable + hold-all (no opt-in in this phase)
+\\ OneIdentity-without-unary-rule is *not* rejected here (Phase 4 analysis/warning).
+\\
+\\ Declaration form:
+\\   (declare-symbol Sym [flat orderless])
+\\   registers structural attrs (only) by calling store's declare-structural-sig stub.
+\\   Control attrs are validated for consistency but not written to structural sig.
+\\
+\\ No evaluation, hold logic, or rule integration yet.
 
-\\ Attribute datatype
+(load "src/store.shen")
+
+\\ --- Attribute classification (symbols for clean list syntax [flat orderless ...]) ---
+
+(define structural-attributes
+  -> [(intern "flat") (intern "orderless") (intern "one-identity")])
+
+(define control-attributes
+  -> [(intern "hold-all") (intern "hold-first") (intern "hold-rest") (intern "listable")])
+
+(define attribute?
+  A -> (or (element? A (structural-attributes))
+           (element? A (control-attributes))))
+
+(define structural-attribute?
+  A -> (element? A (structural-attributes)))
+
+(define control-attribute?
+  A -> (element? A (control-attributes)))
+
+\\ --- Consistency checks (local, per-sketch §5; extensible point) ---
+
+(define consistent?
+  \\ hold-all incompatible with hold-first / hold-rest
+  A Rest -> (not (or (element? (intern "hold-first") Rest)
+                     (element? (intern "hold-rest") Rest)))
+             where (= A (intern "hold-all"))
+  \\ listable + hold-all rejected (no opt-in yet)
+  A Rest -> (not (element? (intern "hold-all") Rest))
+             where (= A (intern "listable"))
+  \\ default: ok (flat/orderless/one-identity freely combine with each other and control except above)
+  _ _ -> true)
+
+(define consistent-attrs?
+  [] -> true
+  [A | AS] -> (and (attribute? A)
+                   (consistent? A AS)
+                   (consistent-attrs? AS)))
+
+(define list?
+  [] -> true
+  [_ | _] -> true
+  _ -> false)
+
+(define filter
+  _ [] -> []
+  F [X | Xs] -> (if (F X) [X | (filter F Xs)] (filter F Xs)))
+
+(define every
+  _ [] -> true
+  F [X | Xs] -> (and (F X) (every F Xs)))
+
+(define valid-attrs?
+  AS -> (and (list? AS)
+             (every attribute? AS)
+             (consistent-attrs? AS)))
+
+\\ --- Datatypes (following sketch §5 for future sequent use; side conditions supported) ---
+
 (datatype attribute
   __________________________
   flat : attribute;
-
   __________________________
   orderless : attribute;
-
   __________________________
   one-identity : attribute;
-
   __________________________
   hold-all : attribute;
-
   __________________________
   hold-first : attribute;
-
   __________________________
   hold-rest : attribute;
-
   __________________________
   listable : attribute; )
 
-\\ valid-attrs with consistency
 (datatype valid-attrs
   ________________________
-  (attrs []) : valid-attrs;
-
-  A : attribute;
-  AS : valid-attrs;
+  [] : valid-attrs;
+  A : attribute; AS : valid-attrs;
   (consistent? A AS);
-  __________________________
-  (attrs [A | AS]) : valid-attrs; )
+  ________________________________
+  [A | AS] : valid-attrs; )
 
-(define consistent?
-  hold-all (attrs AS) -> (not (or (element? hold-first AS) (element? hold-rest AS)))
-  listable (attrs AS) -> (not (element? hold-all AS))   \\ requires explicit opt-in if wanted
-  _ _ -> true)
+\\ --- Explicit symbol declaration (calls into store structural sig stub) ---
 
-\\ Declaration (structural ones are immutable)
-(set *declared-attrs* [])
+(define declare-symbol
+  \\ Sym: the head symbol (e.g. Plus)
+  \\ Attrs: list of attribute symbols e.g. [flat orderless]
+  \\ Only structural attrs are passed to declare-structural-sig (immutable sig).
+  \\ Full Attrs list is consistency-checked here.
+  \\ Returns Sym on success; errors on inconsistency or bad input.
+  Sym Attrs ->
+    (if (not (list? Attrs))
+        (error "declare-symbol: second arg must be a list of attributes, got ~A" Attrs)
+        (if (consistent-attrs? Attrs)
+            (let Struct (filter structural-attribute? Attrs)
+                 _ (if (empty? Struct)
+                       true
+                       (declare-structural-sig Sym Struct))
+                 Sym)
+            (error "declare-symbol: inconsistent attributes for ~A: ~A~%  (rejected combinations: hold-all+hold-{first,rest}, listable+hold-all)" Sym Attrs))))
 
-(define declare-attrs
-  Sym AttrList ->
-    (let VA (attrs AttrList)
-         (if (valid-attrs? VA)   \\ simplistic
-             (do (set *declared-attrs* [[Sym | AttrList] | (value *declared-attrs*)])
-                 (if (or (element? flat AttrList) (element? orderless AttrList) (element? one-identity AttrList))
-                     (declare-structural-sig Sym AttrList)   \\ calls into store
-                     true))
-             (error "inconsistent attrs for ~A" Sym))))
+\\ Convenience: declare only structural attrs (sugar, still validates)
+(define declare-structural
+  Sym StructAttrs ->
+    (if (every structural-attribute? StructAttrs)
+        (declare-symbol Sym StructAttrs)
+        (error "declare-structural: non-structural attrs supplied for ~A: ~A" Sym StructAttrs)))
 
-(define get-attrs
-  Sym -> (assoc Sym (value *declared-attrs*)))
-
-(princ "attrs.shen (structural immutable + consistency) loaded.~%")
+(output "attrs.shen loaded (structural/control split + consistent? + declare-symbol via store sig).~%")
