@@ -10,6 +10,10 @@
   _______________
   [int N] : expr;
 
+  N : number; D : number;
+  ________________________
+  [rat N D] : expr;
+
   H : expr; Args : (list expr);
   ______________________________
   [H | Args] : expr; )
@@ -28,6 +32,7 @@
 (define pretty-expr
   [sym S] -> S
   [int N] -> N
+  [rat N D] -> [N / D]
   [H | Args] -> [(pretty-expr H) | (map (/. A (pretty-expr A)) Args)]
   E -> E)
 

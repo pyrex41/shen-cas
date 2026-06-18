@@ -1,5 +1,9 @@
 \\ boot/arith.shen
-\\ SCUD 13.1 skeleton: core CAS symbols + arithmetic simplification rules
+\\ SCUD 13.1 skeleton + SCUD 17 cleanup: core CAS symbols + identity rules only.
+\\ 17b: bespoke literal numeric rules (Plus[2,3]->5, Minus[9,8]->1, Times[4,7]->28, ...)
+\\      DELETED -- num-builtin now folds all-numeric arithmetic before user rules.
+\\ 17d: duplicate both-orderings rules (Plus[0,x_], Times[1,x_]) DELETED -- a single
+\\      rule now covers commuted args via Orderless matching (match-ac).
 
 (define boot-declare-structural
   Sym Attrs -> (if (sig-present? Sym)
@@ -10,65 +14,25 @@
 (boot-declare-structural (protect Times) [(protect flat) (protect orderless)])
 (boot-declare-structural (protect Power) [])
 
+\\ x + 0 -> x   (single rule; Orderless covers 0 + x)
 (register-rule
   (rule [[sym (protect Plus)] (named (protect x) (blank)) [int 0]]
         [sym (protect x)]))
 
-(register-rule
-  (rule [[sym (protect Plus)] [int 0] (named (protect x) (blank))]
-        [sym (protect x)]))
-
+\\ x * 1 -> x   (single rule; Orderless covers 1 * x)
 (register-rule
   (rule [[sym (protect Times)] (named (protect x) (blank)) [int 1]]
         [sym (protect x)]))
 
+\\ x * 0 -> 0   (single rule; Orderless covers 0 * x)
 (register-rule
   (rule [[sym (protect Times)] (named (protect x) (blank)) [int 0]]
         [int 0]))
 
+\\ x - 0 -> x
 (register-rule
   (rule [[sym (protect Minus)] (named (protect x) (blank)) [int 0]]
         [sym (protect x)]))
-
-(register-rule
-  (rule [[sym (protect Times)] [int 1] (named (protect x) (blank))]
-        [sym (protect x)]))
-
-(register-rule
-  (rule [[sym (protect Plus)] [int 2] [int 3]]
-        [int 5]))
-
-(register-rule
-  (rule [[sym (protect Minus)] [int 9] [int 8]]
-        [int 1]))
-
-(register-rule
-  (rule [[sym (protect Minus)] [int 5] [int 3]]
-        [int 2]))
-
-(register-rule
-  (rule [[sym (protect Minus)] [int 4] [int 1]]
-        [int 3]))
-
-(register-rule
-  (rule [[sym (protect Divide)] [int 6] [int 2]]
-        [int 3]))
-
-(register-rule
-  (rule [[sym (protect Times)] [int 4] [int 7]]
-        [int 28]))
-
-(register-rule
-  (rule [[sym (protect Times)] [int 12] [int 2]]
-        [int 24]))
-
-(register-rule
-  (rule [[sym (protect Times)] [int 5] [int 3]]
-        [int 15]))
-
-(register-rule
-  (rule [[sym (protect Times)] [int -245] [int 67]]
-        [int -16415]))
 
 (boot-declare-structural (protect If) [])
 

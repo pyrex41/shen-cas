@@ -54,6 +54,7 @@
 (define expr-atom?
   [sym S] -> true where (symbol? S)
   [int N] -> true where (number? N)
+  [rat N D] -> true where (and (number? N) (number? D))
   X -> false)
 
 (define expr-compound?
@@ -68,6 +69,7 @@
   Name Val [sym Name] -> Val
   Name Val [sym S] -> [sym S]
   Name Val [int N] -> [int N]
+  Name Val [rat N D] -> [rat N D]
   Name Val [H | Args] -> [(replace-free Name Val H) | (map (/. X (replace-free Name Val X)) Args)]
   Name Val X -> X)
 

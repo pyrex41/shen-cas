@@ -117,7 +117,7 @@
   _ -> false)
 
 (define expr-form?
-  P -> (and (cons? P) (element? (hd P) [(intern "sym") (intern "int") (intern "real") (intern "str")]))
+  P -> (and (cons? P) (element? (hd P) [(intern "sym") (intern "int") (intern "rat") (intern "real") (intern "str")]))
   _ -> false)
 
 (define compound-pattern?

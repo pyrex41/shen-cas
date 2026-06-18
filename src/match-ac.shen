@@ -1,6 +1,14 @@
-\\ match-ac.shen - Quick stub for Orderless + Flat + AC blowup warning (Phase 2)
-\\ Per sketch §7.3-7.4, plan Phase 2 acceptance, SCUD 9.2.
+\\ match-ac.shen - Orderless + Flat (AC) matching (SCUD 17d)
+\\ Per sketch §7.3-7.4, plan Wave 1.
 \\ 16e: match (and match-seq) are loaded by load.shen before match-ac; no redundant load.
+\\
+\\ 17d fixes:
+\\  - flatten-flat detects NESTED same-head compounds via headed-by-sym? (mirror
+\\    store's flatten-args-for-hash), not bare sym?.
+\\  - Orderless matching fires REGARDLESS of seq-var count (permutation search even
+\\    with no seq var), bounded by *ac-max-args* and a Flat+Orderless+>1-seq-var warning.
+
+(set *ac-max-args* 8)
 
 (define ac-known-heads
   -> [[sym (protect Plus)] [sym (protect Times)] (protect Plus) (protect Times)])
@@ -33,19 +41,15 @@
             true)
         true))
 
-\\ Fallback while match-seq.shen is deferred. When sequence patterns are wired in,
-\\ match-seq.shen can override this with the Prolog-backed implementation.
-(define match-args-with-sequences
-  PArgs EArgs -> (match-arg-list PArgs EArgs))
-
+\\ Flat flatten: inline any argument that is itself headed by the SAME symbol as Head.
+\\ Uses headed-by-sym? (store mirror) so nested compounds are detected, not just bare syms.
 (define flatten-flat
-  Head [H | Args] ->
-    (if (and (sym? H) (sym? Head) (= (sym-name H) (sym-name Head)))
-        (append (flatten-flat Head (tl H))
-                (flatten-flat Head Args))
-        [H | (flatten-flat Head Args)])
   Head [] -> []
-  Head X -> [X])
+  Head [A | Rest] ->
+    (if (and (sym? Head) (headed-by-sym? (sym-name Head) A))
+        (append (flatten-flat Head (tl A))
+                (flatten-flat Head Rest))
+        (cons A (flatten-flat Head Rest))))
 
 (define flatten-flat-args
   Head EArgs ->
@@ -53,39 +57,62 @@
         (flatten-flat Head EArgs)
         EArgs))
 
-(defprolog permutation
-  [] [] <-- ;
-  [X | Y] Z <--
-    (select X Z W)
-    (permutation Y W); )
+\\ Pure-Shen permutation generation + search. We must NOT use the Prolog engine
+\\ here: match (via match-ac match-compound) and match-arg-list (via match-seq) can
+\\ themselves re-enter prolog?, and nesting prolog? inside a prolog? (is ...) goal
+\\ overflows the engine's binding-trail vector. Plain Shen keeps each match call
+\\ self-contained.
 
-(defprolog select
-  X [X | Y] Y <-- ;
-  X [Y | Z] [Y | W] <-- (select X Z W); )
+\\ all permutations of a list (bounded externally by *ac-max-args*)
+(define ac-permutations
+  [] -> [[]]
+  L -> (ac-perm-insert-each L))
 
+(define ac-perm-insert-each
+  L -> (ac-perm-loop L L))
+
+\\ For each element X of Picks, prepend X to every permutation of (L without X).
+(define ac-perm-loop
+  [] _ -> []
+  [X | Rest] L -> (append (ac-prepend-all X (ac-permutations (ac-remove-first X L)))
+                          (ac-perm-loop Rest L)))
+
+(define ac-prepend-all
+  _ [] -> []
+  X [P | Ps] -> (cons (cons X P) (ac-prepend-all X Ps)))
+
+(define ac-remove-first
+  _ [] -> []
+  X [Y | Ys] -> (if (= X Y) Ys (cons Y (ac-remove-first X Ys))))
+
+\\ Orderless matching: try every permutation of EArgs against PArgs (seq-aware via
+\\ match-arg-list from match-seq). Bounded by *ac-max-args*; first matching
+\\ permutation wins. Fires regardless of seq-var count.
 (define match-orderless
   Head PArgs EArgs ->
-    (if (ac-head-has-orderless? Head)
-        (let R (prolog?
-                 (permutation EArgs Perm)
-                 (is M (match-args-with-sequences PArgs Perm))
-                 (when (match-some? M))
-                 (return M))
-             (if (match-some? R) R (match-args-with-sequences PArgs EArgs)))
-        (match-args-with-sequences PArgs EArgs)))
+    (if (> (length EArgs) (value *ac-max-args*))
+        (do (output "WARNING: AC permutation search skipped for ~A (>~A args)~%" Head (value *ac-max-args*))
+            (match-arg-list PArgs EArgs))
+        (match-orderless-perms PArgs (ac-permutations EArgs))))
+
+(define match-orderless-perms
+  _ [] -> match-none
+  PArgs [Perm | Rest] ->
+    (let M (match-arg-list PArgs Perm)
+         (if (match-some? M) M (match-orderless-perms PArgs Rest))))
 
 (define match-compound
   PH PArgs EH EArgs ->
     (let HeadMatch (match PH EH)
          (if (match-some? HeadMatch)
              (let FlatEArgs (if (cons? EH) (flatten-flat-args EH EArgs) EArgs)
-                  ArgMatch (if (and (ac-head-has-orderless? EH) (> (count-seq-vars PArgs) 0))
+                  Ign (if (cons? EH) (ac-blowup-warning EH PArgs) true)
+                  ArgMatch (if (and (cons? EH) (ac-head-has-orderless? EH))
                                (match-orderless EH PArgs FlatEArgs)
                                (match-arg-list PArgs FlatEArgs))
-                  Ign (if (cons? EH) (ac-blowup-warning EH PArgs) true)
                   (if (match-some? ArgMatch)
                       (match-some (append (match-unwrap HeadMatch) (match-unwrap ArgMatch)))
                       match-none))
              match-none)))
 
-(output "match-ac.shen loaded (quick AC stub: orderless perm + flat flatten + blowup warning).~%")
+(output "match-ac.shen loaded (orderless perm any-seq-count + flat nested flatten + blowup warning).~%")

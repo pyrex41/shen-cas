@@ -9,6 +9,7 @@
 (define free-symbols
   [sym S] -> [S]
   [int N] -> [] where (number? N)
+  [rat N D] -> [] where (and (number? N) (number? D))
   [H | Args] -> (append (free-symbols H) (mapcan (/. X (free-symbols X)) Args))
   _ -> [])
 

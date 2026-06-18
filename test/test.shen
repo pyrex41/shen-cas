@@ -244,11 +244,149 @@
                   (output "correctness gate (SCUD 16): FAIL~%"))
               Ok)))
 
+\\ === SCUD 17 Wave 1: evaluator + matching + rationals ===
+
+\\ 17a: the ordered evaluation sequence. Built-in arithmetic fires with NO rule;
+\\ a single x+0 rule handles commuted args; hold-all leaves args unevaluated;
+\\ a looping rule terminates with the step-limit warning (no hang).
+(define test-eval-sequence
+  -> (let Ign0 (demo-register-arith)
+          Ign1 (output "~%=== SCUD 17a eval sequence ===~%")
+          \\ built-in arithmetic with NO rule registered for 7+8
+          A (reduce [[sym (protect Plus)] [int 7] [int 8]])
+          OkA (content-eq A [int 15])
+          \\ single x+0 rule covers commuted 0+x via Orderless
+          B (reduce [[sym (protect Plus)] [int 0] [sym (protect zz)]])
+          OkB (content-eq B [sym (protect zz)])
+          \\ hold-all leaves its argument unevaluated
+          _ (declare-symbol (protect Held17) [(intern "hold-all")])
+          Inner [[sym (protect Plus)] [int 1] [int 2]]
+          HE [[sym (protect Held17)] Inner]
+          H (reduce HE)
+          OkH (content-eq H HE)
+          \\ diverging rule terminates with the step-limit warning (no hang).
+          \\ Loop17[q] -> Loop17[Plus[q,1]] grows without bound; the *max-eval-steps*
+          \\ guard must warn+return instead of looping forever. We assert the datom
+          \\ directly into *db* (the self-referential RHS head is intentionally not
+          \\ whitelisted, so register-rule would reject it) and lower the cap for speed.
+          LoopRule (rule [[sym (protect Loop17)] (named (protect q) (blank))]
+                         [[sym (protect Loop17)] [[sym (protect Plus)] [sym (protect q)] [int 1]]])
+          SavedDb (value *db*)
+          _ (set *db* (assert-rule (value *db*) [sym (protect Loop17)] down LoopRule))
+          Saved (value *max-eval-steps*)
+          _ (set *max-eval-steps* 20)
+          L (reduce [[sym (protect Loop17)] [int 1]])
+          _ (set *max-eval-steps* Saved)
+          _ (set *db* SavedDb)
+          OkL (cons? L)
+          Ok (and OkA OkB OkH OkL)
+          (do (output "17a: builtin7+8=~A commuted0+zz=~A hold=~A loop-terminates=~A~%" OkA OkB OkH OkL)
+              Ok)))
+
+\\ 17b: built-in arithmetic hook (highest-priority, after arg eval, before user rules).
+(define test-builtin-arith
+  -> (let Ign (output "~%=== SCUD 17b builtin arith ===~%")
+          P (reduce [[sym (protect Plus)] [int 3] [int 4] [int 5]])
+          T (reduce [[sym (protect Times)] [int 6] [int 7]])
+          M (reduce [[sym (protect Minus)] [int 10] [int 3]])
+          D (reduce [[sym (protect Divide)] [int 6] [int 2]])
+          \\ symbolic args: num-builtin declines, expr stays inert
+          S (reduce [[sym (protect Plus)] [sym (protect a)] [sym (protect b)]])
+          Ok (and (content-eq P [int 12])
+                  (content-eq T [int 42])
+                  (content-eq M [int 7])
+                  (content-eq D [int 3])
+                  (= (head S) [sym (protect Plus)]))
+          (do (output "17b: 3+4+5=~A 6*7=~A 10-3=~A 6/2=~A symbolic-inert=~A~%"
+                      (content-eq P [int 12]) (content-eq T [int 42])
+                      (content-eq M [int 7]) (content-eq D [int 3])
+                      (= (head S) [sym (protect Plus)]))
+              Ok)))
+
+\\ 17c: sound sequence matching. BlankSequence>=1, BlankNullSequence>=0, named seq
+\\ binds the matched prefix; first-order matching unaffected.
+(define test-seq-match
+  -> (let Ign (output "~%=== SCUD 17c seq match ===~%")
+          M1 (match [[sym (protect f)] (named (protect a) (blank-seq)) [int 9]]
+                    [[sym (protect f)] [int 1] [int 2] [int 9]])
+          Ok1 (and (match-some? M1)
+                   (= (match-unwrap M1) [[(protect a) [[int 1] [int 2]]]]))
+          M2 (match [[sym (protect f)] (named (protect a) (blank-null)) [int 9]]
+                    [[sym (protect f)] [int 9]])
+          Ok2 (and (match-some? M2)
+                   (= (match-unwrap M2) [[(protect a) []]]))
+          M3 (match [[sym (protect f)] (named (protect a) (blank-seq)) [int 9]]
+                    [[sym (protect f)] [int 9]])
+          Ok3 (not (match-some? M3))
+          \\ first-order unchanged
+          M4 (match [[sym (protect g)] (named (protect x) (blank)) (named (protect y) (blank))]
+                    [[sym (protect g)] [int 1] [int 2]])
+          Ok4 (match-some? M4)
+          Ok (and Ok1 Ok2 Ok3 Ok4)
+          (do (output "17c: a__binds=~A a___empty=~A min1-fails=~A first-order=~A~%" Ok1 Ok2 Ok3 Ok4)
+              Ok)))
+
+\\ 17d: correct + complete AC matching. Orderless fires regardless of seq-var count;
+\\ Plus[9,zz] matches Plus[a_,9]; nested Flat flatten works.
+(define test-ac-match
+  -> (let Ign0 (demo-register-arith)
+          Ign (output "~%=== SCUD 17d AC match ===~%")
+          \\ Orderless with NO seq var: Plus[a_,9] matches Plus[9,zz]
+          M1 (match [[sym (protect Plus)] (named (protect a) (blank)) [int 9]]
+                    [[sym (protect Plus)] [int 9] [sym (protect zz)]])
+          Ok1 (and (match-some? M1)
+                   (= (match-unwrap M1) [[(protect a) [sym (protect zz)]]]))
+          \\ nested Flat flatten: Plus[Plus[1,2],3] -> 6 (flatten then arith)
+          N (reduce [[sym (protect Plus)] [[sym (protect Plus)] [int 1] [int 2]] [int 3]])
+          Ok2 (content-eq N [int 6])
+          \\ flatten-flat itself on nested same-head compound
+          F (flatten-flat [sym (protect Plus)]
+                          [[[sym (protect Plus)] [int 1] [int 2]] [int 3]])
+          Ok3 (= (length F) 3)
+          Ok (and Ok1 Ok2 Ok3)
+          (do (output "17d: orderless-no-seqvar=~A nested-flatten-arith=~A flatten=~A~%" Ok1 Ok2 Ok3)
+              Ok)))
+
+\\ 17e: exact rationals.
+(define test-rationals
+  -> (let Ign0 (demo-register-arith)
+          Ign (output "~%=== SCUD 17e rationals ===~%")
+          R1 (make-rat 6 4)
+          Ok1 (= R1 [rat 3 2])
+          R2 (make-rat 4 2)
+          Ok2 (= R2 [int 2])
+          R3 (reduce [[sym (protect Divide)] [int 6] [int 4]])
+          Ok3 (content-eq R3 [rat 3 2])
+          \\ mixed int/rat exact: 1/2 + 1 = 3/2 ; (1/2)*4 = 2
+          R4 (reduce [[sym (protect Plus)] [rat 1 2] [int 1]])
+          Ok4 (content-eq R4 [rat 3 2])
+          R5 (reduce [[sym (protect Times)] [rat 1 2] [int 4]])
+          Ok5 (content-eq R5 [int 2])
+          \\ overflow guard active
+          Ok6 (overflow? 99999999999999999999999999)
+          \\ distinct rat/int hash (3/2 != 3)
+          Ok7 (not (content-eq [rat 3 2] [int 3]))
+          Ok (and Ok1 Ok2 Ok3 Ok4 Ok5 Ok6 Ok7)
+          (do (output "17e: 6/4=3/2:~A 4/2=2:~A Divide=~A mixed+=~A mixed*=~A overflow=~A hashdistinct=~A~%"
+                      Ok1 Ok2 Ok3 Ok4 Ok5 Ok6 Ok7)
+              Ok)))
+
+(define test-eval-evaluator-wave1
+  -> (let Ign (output "~%=== SCUD 17 Wave 1 ===~%")
+          Ok (and (test-eval-sequence)
+                  (test-builtin-arith)
+                  (test-seq-match)
+                  (test-ac-match)
+                  (test-rationals))
+          (do (if Ok (output "Wave 1 evaluator (SCUD 17): PASS~%")
+                  (output "Wave 1 evaluator (SCUD 17): FAIL~%"))
+              Ok)))
+
 (define run-all-tests
   -> (let Ign (output "=== shen-cas test harness ===~%")
             Ok (and (run-golden) (run-rejection-tests) (attrs-demo) (run-lfp-tests)
                     (run-analysis-tests) (run-phase1-skeleton) (test-scope-block-fork)
-                    (test-backend-seam) (test-correctness-gate))
+                    (test-backend-seam) (test-correctness-gate) (test-eval-evaluator-wave1))
             (do (if Ok (output "~%ALL PASS~%") (output "~%SOME FAIL~%")) Ok)))
 
 (define test-backend-seam

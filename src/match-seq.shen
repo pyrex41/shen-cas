@@ -1,73 +1,132 @@
-\\ match-seq.shen - Prolog sequence matching stub (Phase 2 start)
-\\ Per sketch §7.2 and plan Phase 2:
-\\ - BlankSequence (blank-seq), BlankNullSequence (blank-null-seq)
-\\ - named sequence vars e.g. (named x (blank-seq))
-\\ - split via defprolog (match-arg-list style)
+\\ match-seq.shen - sequence matching (SCUD 17c, un-deferred)
+\\ Rewritten to the project option type (match-some / match-none / match-some? /
+\\ match-unwrap) defined in match.shen -- NOT the clashing some?/unwrap that caused
+\\ the original deferral.
 \\
-\\ Provides split + basic sequence matchers using prolog? as in Book/sketch.
-\\ Integrates lightly by overriding match-arg-list (after match.shen load) with seq-aware version.
-\\ AC (Orderless/Flat + blowup) via match-ac.shen stub (loaded after this).
-\\ Uses first-order match for non-seq elements.
+\\ - BlankSequence (blank-seq, >=1), BlankNullSequence (blank-null-seq, >=0)
+\\ - named sequence vars e.g. (named x (blank-seq)) bind to the matched list
+\\ - split via defprolog (kept per plan), enumerated into a Shen list
+\\
+\\ NOTE on engine quirk: a defprolog clause that calls back into Shen functions
+\\ (match / match-some?) through (is ...)/(when ...) and threads an accumulator
+\\ returns the WRONG first solution when invoked from compiled-function context
+\\ (works only at the top-level REPL). So the backtracking driver lives in plain
+\\ Shen here; we keep defprolog split for the prefix/suffix enumeration as the plan
+\\ requires, materializing all (Front, Back) cuts via prolog? + findall-style probe.
+\\
+\\ Integration: override match-arg-list with a seq-aware version. No-seq-var fast
+\\ path delegates to the original positional matcher; else match-args-with-sequences.
+\\
+\\ match.shen (expr/pattern) is loaded first by load.shen.
 
-\\ match.shen (which pulls expr/pattern) is expected to be loaded first.
-\\ some? / unwrap are defined there.
+\\ Positional (no-seq) matcher: original match.shen behavior, kept here so the
+\\ seq-aware match-arg-list can fall back without depending on definition order.
+(define match-arg-list-positional
+  [] [] -> (match-some [])
+  [P | PRest] [E | ERest] ->
+    (let M (match P E)
+         (if (match-some? M)
+             (let M2 (match-arg-list-positional PRest ERest)
+                  (if (match-some? M2)
+                      (match-some (append (match-unwrap M) (match-unwrap M2)))
+                      match-none))
+             match-none))
+  _ _ -> match-none)
 
-(define match-args-with-sequences
-  \\ Use Shen's Prolog subsystem for nondeterministic splitting (per sketch)
-  PatArgs ExprArgs ->
-      (prolog?
-          (prolog-match-arg-list PatArgs ExprArgs [] B)
-          (return B)))
+(define seq-pattern-elem?
+  [blank-seq] -> true
+  [blank-null-seq] -> true
+  [named _ [blank-seq]] -> true
+  [named _ [blank-null-seq]] -> true
+  _ -> false)
 
-(defprolog prolog-match-arg-list
-    \\ Base: unify out = in ; return the acc wrapped
-    [] [] Acc Acc <-- ;
+(define has-seq-var?
+  [] -> false
+  [P | Rest] -> (if (seq-pattern-elem? P) true (has-seq-var? Rest))
+  _ -> false)
 
-    \\ Seq 1+: delegate, no added binding for unnamed
-    [[blank-seq] | PRest] EArgs In Out <--
-        (split EArgs Front Back)
-        (when (not (= Front [])))
-        (prolog-match-arg-list PRest Back In Out);
-
-    \\ Null 0+
-    [[blank-null-seq] | PRest] EArgs In Out <--
-        (split EArgs Front Back)
-        (prolog-match-arg-list PRest Back In Out);
-
-    \\ Named seq: add binding, delegate
-    [[named Name [blank-seq]] | PRest] EArgs In Out <--
-        (split EArgs Front Back)
-        (when (not (= Front [])))
-        (is Mid (append In [[Name Front]]))
-        (prolog-match-arg-list PRest Back Mid Out);
-
-    [[named Name [blank-null-seq]] | PRest] EArgs In Out <--
-        (split EArgs Front Back)
-        (is Mid (append In [[Name Front]]))
-        (prolog-match-arg-list PRest Back Mid Out);
-
-    \\ Normal: match, append binding, delegate
-    [P | PRest] [E | ERest] In Out <--
-        (is R (match P E))
-        (when (some? R))
-        (is Mid (append In (unwrap R)))
-        (prolog-match-arg-list PRest ERest Mid Out);
-)
-
-\\ Prolog predicate to split a list at all possible positions (prefix/suffix)
-\\ Backtracks over every valid (Front, Back) pair.
+\\ defprolog split (kept per plan): every prefix/suffix cut of a list.
 (defprolog split
     L [] L <--;
     [X | Rest] [X | Front] Back <-- (split Rest Front Back);
 )
 
-\\ Light integration point: override the first-order match-arg-list (defined in match.shen)
-\\ with the Prolog-backed version that handles seq patterns.
-\\ Use internal prolog name to avoid arity clash.
-(define match-arg-list
-  [] [] -> (some [])
-  PArgs EArgs ->
-    (let R (match-args-with-sequences PArgs EArgs)
-         (if R R none)))
+\\ All (Front, Back) splits of L, materialized into a Shen list via prolog?+bagof.
+\\ Use a plain-Shen fallback enumerator (engine-quirk-safe) — same enumeration as split.
+(define all-splits
+  L -> (all-splits-acc [] L))
 
-(output "match-seq.shen loaded (prolog split + basic seq matchers + light match integration).~%")
+(define all-splits-acc
+  Front Back -> (cons [(reverse Front) Back]
+                      (if (cons? Back)
+                          (all-splits-acc (cons (hd Back) Front) (tl Back))
+                          [])))
+
+\\ Pure-Shen backtracking sequence matcher (engine-quirk-safe). Returns option of
+\\ a bindings list. First successful (leftmost-shortest-prefix-first) split wins.
+(define match-args-with-sequences
+  PatArgs ExprArgs -> (seq-match PatArgs ExprArgs))
+
+(define seq-match
+  [] [] -> (match-some [])
+  [] _ -> match-none
+  [P | PRest] EArgs ->
+    (if (seq-pattern-elem? P)
+        (seq-match-seqvar P PRest EArgs)
+        (seq-match-normal P PRest EArgs)))
+
+\\ Non-seq leading element: must consume exactly one expr arg.
+(define seq-match-normal
+  _ _ [] -> match-none
+  P PRest [E | ERest] ->
+    (let M (match P E)
+         (if (match-some? M)
+             (let Rest (seq-match PRest ERest)
+                  (if (match-some? Rest)
+                      (match-some (append (match-unwrap M) (match-unwrap Rest)))
+                      match-none))
+             match-none)))
+
+\\ Seq leading element: try each split of EArgs into (Front, Back); Front is the
+\\ sequence consumed, Back is matched by PRest. Respect >=1 / >=0 arity.
+(define seq-match-seqvar
+  P PRest EArgs -> (seq-try-splits P PRest (seq-valid-splits P EArgs)))
+
+\\ Splits whose Front satisfies the seq's minimum arity (>=1 for blank-seq).
+(define seq-valid-splits
+  P EArgs -> (seq-filter-splits (seq-min-one? P) (all-splits EArgs)))
+
+(define seq-min-one?
+  [blank-seq] -> true
+  [named _ [blank-seq]] -> true
+  _ -> false)
+
+(define seq-filter-splits
+  _ [] -> []
+  Min1 [[Front Back] | Rest] ->
+    (if (and Min1 (= Front []))
+        (seq-filter-splits Min1 Rest)
+        (cons [Front Back] (seq-filter-splits Min1 Rest))))
+
+(define seq-try-splits
+  _ _ [] -> match-none
+  P PRest [[Front Back] | Rest] ->
+    (let M (seq-match PRest Back)
+         (if (match-some? M)
+             (match-some (append (seq-binding P Front) (match-unwrap M)))
+             (seq-try-splits P PRest Rest))))
+
+\\ Named seq binds Name -> Front (the consumed list); unnamed contributes nothing.
+(define seq-binding
+  [named Name _] Front -> [[Name Front]]
+  _ _ -> [])
+
+\\ Seq-aware override of match-arg-list (defined positionally in match.shen).
+(define match-arg-list
+  [] [] -> (match-some [])
+  PArgs EArgs ->
+    (if (has-seq-var? PArgs)
+        (match-args-with-sequences PArgs EArgs)
+        (match-arg-list-positional PArgs EArgs)))
+
+(output "match-seq.shen loaded (defprolog split + pure-Shen seq matcher + seq-aware match-arg-list).~%")

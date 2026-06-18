@@ -37,10 +37,13 @@
   E -> E)   \\ stub (tied to binders); scope.shen redefines for Module/With alpha-renaming before hash.
             \\ Alpha-equivalent Module/With bodies therefore share content hashes.
 
+\\ 17e: rationals get a distinct "rat" hash tag (folds N and D). make-rat collapses
+\\ D=1 to [int N], so a [rat N D] hash can never collide with an [int N] hash.
 (define content-hash*
   [sym S] -> [ch (hash-atom "sym" S)]
   S -> [ch (hash-atom "sym" S)] where (symbol? S)
   [int N] -> [ch (hash-atom "int" N)]
+  [rat N D] -> [ch (hash (cn "rat" (cn (str N) (cn "/" (str D)))) 1000000007)]
   [H | Args] -> (let Hh (content-hash* H)
                      Ah (canonical-arg-hashes H Args)
                      [ch (hash-compound (unwrap-ch Hh) (map (/. X (unwrap-ch X)) Ah))])

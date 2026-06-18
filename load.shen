@@ -15,7 +15,7 @@
 \\ match-compound / match-arg-list wins: match (first-order) -> match-seq (sequences)
 \\ -> match-ac (Orderless/Flat). match-seq is deferred until Wave 1 (17c).
 (load "src/match.shen")
-\\ (load "src/match-seq.shen")  \\ deferred (Wave 1 / SCUD 17c): prolog seq match needs option-type rewrite
+(load "src/match-seq.shen")  \\ SCUD 17c: prolog seq match (project option type)
 (load "src/match-ac.shen")
 (load "src/core.shen")
 (load "src/scope.shen")
