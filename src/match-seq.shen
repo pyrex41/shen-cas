@@ -6,7 +6,7 @@
 \\
 \\ Provides split + basic sequence matchers using prolog? as in Book/sketch.
 \\ Integrates lightly by overriding match-arg-list (after match.shen load) with seq-aware version.
-\\ No full AC (Orderless/Flat) yet -- match-ac.shen later.
+\\ AC (Orderless/Flat + blowup) via match-ac.shen stub (loaded after this).
 \\ Uses first-order match for non-seq elements.
 
 \\ match.shen (which pulls expr/pattern) is expected to be loaded first.
@@ -17,31 +17,31 @@
   PatArgs ExprArgs ->
       (prolog?
           (prolog-match-arg-list PatArgs ExprArgs [] B)
-          (return (some B))))
+          (return B)))
 
 (defprolog prolog-match-arg-list
     \\ Base: unify out = in ; return the acc wrapped
     [] [] Acc Acc <-- ;
 
     \\ Seq 1+: delegate, no added binding for unnamed
-    [(blank-seq) | PRest] EArgs In Out <--
+    [[blank-seq] | PRest] EArgs In Out <--
         (split EArgs Front Back)
         (when (not (= Front [])))
         (prolog-match-arg-list PRest Back In Out);
 
     \\ Null 0+
-    [(blank-null-seq) | PRest] EArgs In Out <--
+    [[blank-null-seq] | PRest] EArgs In Out <--
         (split EArgs Front Back)
         (prolog-match-arg-list PRest Back In Out);
 
     \\ Named seq: add binding, delegate
-    [(named Name (blank-seq)) | PRest] EArgs In Out <--
+    [[named Name [blank-seq]] | PRest] EArgs In Out <--
         (split EArgs Front Back)
         (when (not (= Front [])))
         (is Mid (append In [[Name Front]]))
         (prolog-match-arg-list PRest Back Mid Out);
 
-    [(named Name (blank-null-seq)) | PRest] EArgs In Out <--
+    [[named Name [blank-null-seq]] | PRest] EArgs In Out <--
         (split EArgs Front Back)
         (is Mid (append In [[Name Front]]))
         (prolog-match-arg-list PRest Back Mid Out);
@@ -70,4 +70,4 @@
     (let R (match-args-with-sequences PArgs EArgs)
          (if R R none)))
 
-(princ "match-seq.shen loaded (prolog split + basic seq matchers + light match integration).~%")
+(output "match-seq.shen loaded (prolog split + basic seq matchers + light match integration).~%")

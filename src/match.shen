@@ -1,21 +1,21 @@
 \\ match.shen - first-order matcher + substitute (Phase 1)
 \\ Supports literal, blank, named, compound.
-\\ No sequences / AC yet (match-seq + match-ac later).
+\\ Sequences via match-seq override; AC (Orderless/Flat) via match-ac stub (post load).
 
 (load "src/expr.shen")
 (load "src/pattern.shen")
 
 (define match
-  (blank) _ -> (some [])
-  (blank H) [[(sym H) | _] | _] -> (some [])
-  (blank H) _ -> none
-  (named Name P) E -> (let R (match P E)
+  [blank] _ -> (some [])
+  [blank H] [[sym H] | _] -> (some [])   ; note: head of compound is the sym list [sym H] , outer list pattern simplified
+  [blank H] _ -> none
+  [named Name P] E -> (let R (match P E)
                            (if (some? R)
                                (some (cons [Name E] (unwrap R)))
                                none))
   E E -> (some []) where (not (compound? E))
   [PH | PArgs] [EH | EArgs] -> (match-compound PH PArgs EH EArgs)
-  (condition P Test) E -> (let R (match P E)
+  [condition P Test] E -> (let R (match P E)
                               (if (and (some? R)
                                        (eval-to-true? (substitute (unwrap R) Test)))
                                   R
@@ -44,9 +44,9 @@
              none))
   _ _ -> none)
 
-\\ NOTE: match-seq.shen (loaded after) overrides match-arg-list with prolog-backed
-\\ version supporting BlankSequence/BlankNullSequence + named seq vars (light integration).
-\\ The above is the Phase-1 first-order fallback used inside the prolog normal case.
+\\ NOTE: match-seq.shen (loaded after) overrides match-arg-list.
+\\ match-ac.shen (loaded after seq) further extends match-compound for Orderless/Flat + warning.
+\\ The above is the Phase-1 first-order fallback.
 
 (define compound? 
   [_ | _] -> true
@@ -57,9 +57,9 @@
   [[Name Val] | Rest] E -> (substitute Rest (replace-free Name Val E)))
 
 (define replace-free
-  Name Val (sym Name) -> Val
-  Name Val (sym S) -> (sym S)
-  Name Val (int N) -> (int N)
+  Name Val [sym Name] -> Val
+  Name Val [sym S] -> [sym S]
+  Name Val [int N] -> [int N]
   Name Val [H | Args] -> [(replace-free Name Val H) | (map (/. X (replace-free Name Val X)) Args)]
   Name Val X -> X)
 
@@ -67,7 +67,7 @@
 (define unwrap (some X) -> X)
 
 (define eval-to-true?
-  (sym True) -> true
+  [sym True] -> true
   _ -> false)   \\ very crude for skeleton
 
-(princ "match.shen loaded (first-order match + substitute).~%")
+(output "match.shen loaded (first-order match + substitute).~%")
