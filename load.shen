@@ -22,3 +22,4 @@
 \\ etc.
 
 (princ "shen-cas loaded (skeleton). See plan.md and test.shen.~%")
+(load "test/test.shen")
