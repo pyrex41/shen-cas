@@ -32,6 +32,10 @@
   ____________________________
   (named Name P) : pattern;
 
+  Name : symbol; S : seq-pattern;
+  ____________________________
+  (named Name S) : pat-or-seq;
+
   P : pattern; Test : expr;
   ______________________________________
   (condition P Test) : pattern;
@@ -160,16 +164,18 @@
 (define extract-bindings
   P -> (if (named? P)
            (cons (named-name P) (extract-bindings (named-subpattern P)))
-           (if (compound-pattern? P)
-               (append (extract-bindings (compound-pattern-head P))
-                       (mapcan extract-bindings (compound-pattern-args P)))
-               (if (alt? P)
-                   (append (extract-bindings (alt-left P)) (extract-bindings (alt-right P)))
-                   (if (condition? P)
-                       (extract-bindings (condition-pattern P))
-                       (if (ptest? P)
-                           (extract-bindings (ptest-pattern P))
-                           []))))))
+           (if (seq-pattern? P)
+               []   ; unnamed seq forms contribute no bindings; named-seq name collected at outer named
+               (if (compound-pattern? P)
+                   (append (extract-bindings (compound-pattern-head P))
+                           (mapcan extract-bindings (compound-pattern-args P)))
+                   (if (alt? P)
+                       (append (extract-bindings (alt-left P)) (extract-bindings (alt-right P)))
+                       (if (condition? P)
+                           (extract-bindings (condition-pattern P))
+                           (if (ptest? P)
+                               (extract-bindings (ptest-pattern P))
+                               [])))))))
 
 \\ --- Binding list helpers (for bindings-cover? and later Datalog covers?) ---
 (define my-remove
@@ -196,4 +202,4 @@
 \\ --- Integration with store (patterns are also content-addressable in later phases) ---
 \\ For Phase 1 we keep them as ordinary structures but can intern if desired.
 
-(princ "pattern.shen loaded (datatypes + reserved ctors + robust extract-bindings + pattern utilities).~%")
+(output "pattern.shen loaded (datatypes + reserved ctors + robust extract-bindings + pattern utilities).~%")
