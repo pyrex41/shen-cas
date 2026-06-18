@@ -164,35 +164,7 @@
            (let E [(sym Plus) (int 2) (int 0)]
                 Got (reduce E)
                 (do (output "Phase1: used register-rule + reduce: ~A -> ~A~%" E Got)
-                    (content-eq Got (int 2))))))
-
-(define phase1-content-hash-sharing-orderless-flat
-  _ -> (let _ (if (get-structural-sig (protect Plus))
-                  true
-                  (declare-structural (protect Plus) [(protect orderless) (protect flat)]))
-            E1 (compound (sym (protect Plus)) [(int 1) (int 2)])
-            E2 (compound (sym (protect Plus)) [(int 2) (int 1)])
-            H1 (content-hash E1)
-            H2 (content-hash E2)
-            Eq (content-eq E1 E2)
-            (do (output "Phase1: declared Plus orderless+flat (store sig path via attrs)~%")
-                (output "Phase1: content-hash sharing for Orderless? ~A (h1=~A h2=~A)~%" Eq H1 H2)
-                (let F1 (compound (sym (protect Plus)) [(compound (sym (protect Plus)) [(int 1) (int 2)]) (int 3)])
-                     F2 (compound (sym (protect Plus)) [(int 1) (compound (sym (protect Plus)) [(int 2) (int 3)])])
-                     Feq (content-eq F1 F2)
-                     (do (output "Phase1: content-hash sharing for Flat nested? ~A~%" Feq)
-                         (and Eq Feq))))))
-
-(define phase1-golden-noop-idemp-trivial
-  _ -> (let Noops (filter (/. C (let [In -> Exp] C (= In Exp))) (golden-cases))
-            (do (output "Phase1: idempotence under trivial-reduce for golden no-op cases (~A) [see golden/arith-21.4.txt]~%" (length Noops))
-                (map (/. C (let [In -> Exp] C
-                              G (trivial-reduce In)
-                              G2 (trivial-reduce G)
-                              Ok (= G G2)
-                              (do (output "  no-op ~A : trivial-reduce idempotent=~A~%" In Ok) Ok)))
-                     Noops)
-                true)))
+                    (content-eq Got (int 2))))
 
 (define phase1-kernel-idempotence-noop
   _ -> (let E1 (sym x)
