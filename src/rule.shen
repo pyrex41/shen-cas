@@ -52,8 +52,19 @@
 \\ Registration via db assert (SCUD 10.2)
 (set *db* (empty-db))
 
+\\ 18: a guarded rule (condition P Test) or (ptest P F) dispatches on the head of
+\\ the WRAPPED pattern P, not the literal 'condition'/'ptest' tag, so D[x,x] /; ...
+\\ is indexed under D. Peel guards before taking the head.
+(define lhs-dispatch-pattern
+  L -> (if (condition? L)
+           (lhs-dispatch-pattern (condition-pattern L))
+           (if (ptest? L)
+               (lhs-dispatch-pattern (ptest-pattern L))
+               L)))
+
 (define rule-head
-  [rule L _] -> (if (cons? L) (hd L) L))
+  [rule L _] -> (let P (lhs-dispatch-pattern L)
+                     (if (cons? P) (hd P) P)))
 
 \\ 16d: nested if (not 'and') so rule-lhs/rule-rhs are never applied to a
 \\ non-[rule ...] value; a malformed input raises the clean error, not an accessor crash.

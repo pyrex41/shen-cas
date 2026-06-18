@@ -110,9 +110,15 @@
 \\ ----------------------------------------------------------------------------
 (define try-builtin
   [H | Args] -> (if (sym? H)
-                    (apply-builtin-result (num-builtin H Args) [H | Args])
+                    (apply-builtin-result (builtin-result H Args) [H | Args])
                     [H | Args])
   E -> E)
+
+\\ Numeric arithmetic first (highest priority), then wired calculus predicates
+\\ (SameQ/UnsameQ/FreeQ/NumberQ via calc-helpers); [none] means fall through.
+(define builtin-result
+  H Args -> (let R (num-builtin H Args)
+                 (if (= R [none]) (calc-builtin H Args) R)))
 
 (define apply-builtin-result
   [some R] _ -> R

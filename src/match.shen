@@ -21,12 +21,23 @@
                                (match-some (cons [Name E] (match-unwrap R)))
                                match-none))
   E E -> (match-some []) where (not (expr-compound? E))
-  [PH | PArgs] [EH | EArgs] -> (match-compound PH PArgs EH EArgs)
+  \\ 18a: PatternTest - match the sub-pattern, then require the test predicate
+  \\ applied to the bound value to reduce to [sym True].
+  [ptest P F] E -> (let R (match P E)
+                        (if (match-some? R)
+                            (if (eval-to-true? (normal-form [F E]))
+                                R
+                                match-none)
+                            match-none))
+  \\ 18b: Condition - match the sub-pattern, substitute bindings into the Test,
+  \\ then NORMAL-FORM the Test before the truth check (was: literal [sym True] only).
   [condition P Test] E -> (let R (match P E)
-                              (if (and (match-some? R)
-                                       (eval-to-true? (substitute (match-unwrap R) Test)))
-                                  R
+                              (if (match-some? R)
+                                  (if (eval-to-true? (normal-form (substitute (match-unwrap R) Test)))
+                                      R
+                                      match-none)
                                   match-none))
+  [PH | PArgs] [EH | EArgs] -> (match-compound PH PArgs EH EArgs)
   _ _ -> match-none)
 
 (define match-compound
@@ -73,8 +84,10 @@
   Name Val [H | Args] -> [(replace-free Name Val H) | (map (/. X (replace-free Name Val X)) Args)]
   Name Val X -> X)
 
+\\ 18b: True is the canonical (protect True) symbol; an uppercase pattern var
+\\ would wrongly match ANY [sym X] (incl. [sym False]). Compare by name.
 (define eval-to-true?
-  [sym True] -> true
+  [sym S] -> true where (= S (protect True))
   _ -> false)
 
 (output "match.shen loaded (first-order match + substitute).~%")

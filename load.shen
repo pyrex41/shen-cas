@@ -17,6 +17,9 @@
 (load "src/match.shen")
 (load "src/match-seq.shen")  \\ SCUD 17c: prolog seq match (project option type)
 (load "src/match-ac.shen")
+\\ SCUD 18c: wired predicates (SameQ/UnsameQ/FreeQ/NumberQ) must load before
+\\ core so core's try-builtin hook can call calc-builtin.
+(load "src/calc-helpers.shen")
 (load "src/core.shen")
 (load "src/scope.shen")
 (load "src/read.shen")

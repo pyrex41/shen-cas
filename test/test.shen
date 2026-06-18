@@ -382,13 +382,56 @@
                       Ok1 Ok2 Ok3 Ok4 Ok5 Ok6 Ok7 Ok8 Ok9)
               Ok)))
 
+\\ SCUD 18: matcher prerequisites for guarded calculus rules.
+\\ 18a ptest, 18b condition-reduce, 18c wired SameQ/UnsameQ/FreeQ/NumberQ.
+(define test-guards
+  -> (let Ign (output "~%=== SCUD 18 guards (ptest/condition/predicates) ===~%")
+          \\ wired predicates reduce to True/False
+          SQ (reduce [[sym (protect SameQ)] [sym (protect aa)] [sym (protect aa)]])
+          OkSQ (content-eq SQ [sym (protect True)])
+          USQ (reduce [[sym (protect UnsameQ)] [sym (protect aa)] [sym (protect bb)]])
+          OkUSQ (content-eq USQ [sym (protect True)])
+          \\ FreeQ: x free of y-expr? FreeQ[f[a],x] true (no x); FreeQ[f[x],x] false
+          FQy (reduce [[sym (protect FreeQ)] [[sym (protect f)] [sym (protect aa)]] [sym (protect xx)]])
+          OkFQy (content-eq FQy [sym (protect True)])
+          FQn (reduce [[sym (protect FreeQ)] [[sym (protect f)] [sym (protect xx)]] [sym (protect xx)]])
+          OkFQn (content-eq FQn [sym (protect False)])
+          \\ NumberQ gates int vs symbol
+          NQi (reduce [[sym (protect NumberQ)] [int 5]])
+          OkNQi (content-eq NQi [sym (protect True)])
+          NQs (reduce [[sym (protect NumberQ)] [sym (protect zz18)]])
+          OkNQs (content-eq NQs [sym (protect False)])
+          \\ 18a ptest: NumberQ test gates the match (no DB rule needed)
+          PT1 (match (ptest (named (protect n) (blank)) [sym (protect NumberQ)]) [int 7])
+          OkPT1 (match-some? PT1)
+          PT2 (match (ptest (named (protect n) (blank)) [sym (protect NumberQ)]) [sym (protect zz18)])
+          OkPT2 (not (match-some? PT2))
+          \\ 18b/18c: D[a_,x_] /; SameQ[a,x] matches D[x,x], NOT D[y,x].
+          \\ Use condition+SameQ (no reliance on non-linear repeated names).
+          SavedDb (value *db*)
+          _ (declare-symbol (protect D18) [])
+          DRule (rule (condition [[sym (protect D18)] (named (protect a) (blank)) (named (protect x) (blank))]
+                                 [[sym (protect SameQ)] [sym (protect a)] [sym (protect x)]])
+                      [int 1])
+          _ (register-rule DRule)
+          DXX (reduce [[sym (protect D18)] [sym (protect xx)] [sym (protect xx)]])
+          OkDXX (content-eq DXX [int 1])
+          DYX (reduce [[sym (protect D18)] [sym (protect yy)] [sym (protect xx)]])
+          OkDYX (= (head DYX) [sym (protect D18)])
+          _ (set *db* SavedDb)
+          Ok (and OkSQ OkUSQ OkFQy OkFQn OkNQi OkNQs OkPT1 OkPT2 OkDXX OkDYX)
+          (do (output "18: SameQ=~A UnsameQ=~A FreeQ-y=~A FreeQ-n=~A NumberQ-i=~A NumberQ-s=~A ptest-y=~A ptest-n=~A Dxx=~A Dyx-inert=~A~%"
+                      OkSQ OkUSQ OkFQy OkFQn OkNQi OkNQs OkPT1 OkPT2 OkDXX OkDYX)
+              Ok)))
+
 (define test-eval-evaluator-wave1
   -> (let Ign (output "~%=== SCUD 17 Wave 1 ===~%")
           Ok (and (test-eval-sequence)
                   (test-builtin-arith)
                   (test-seq-match)
                   (test-ac-match)
-                  (test-rationals))
+                  (test-rationals)
+                  (test-guards))
           (do (if Ok (output "Wave 1 evaluator (SCUD 17): PASS~%")
                   (output "Wave 1 evaluator (SCUD 17): FAIL~%"))
               Ok)))
