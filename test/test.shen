@@ -4,28 +4,62 @@
 \\ Rejection tests declared as data for future gate.
 \\
 \\ Run: (load "test/test.shen")
+\\ To use file: (load-golden-file "golden/arith-21.4.txt") will eventually feed golden-cases.
 
 \\ Trivial identity "reduce" for skeleton Phase 0 (later replaced by real reduce)
 (define trivial-reduce
   E -> E)
 
-\\ Very small golden parser: split on first " -> " , read as Shen data.
-\\ For MVP skeleton we use a hand-curated list + file scan where possible.
+\\ Golden file parser skeleton (Phase 0).
+\\ Reads golden/arith-21.4.txt as single source of truth.
+\\ Lines of form "INPUT -> EXPECTED" (surface syntax per Book style).
+\\ # comments and blank lines ignored.
 (define load-golden-file
-  Path -> (trap-error (read-file-as-bytelist Path) (/. _ [])))   \\ placeholder; real impl uses line parse
+  Path -> (let AllLines (read-file-as-lines Path)
+               DataLines (filter (/. L (and (not (empty? L)) (not (= (hd (explode L)) #))))
+                                 AllLines)
+               (map parse-golden-line DataLines)))
 
-\\ For skeleton: hard-coded cases + one file-backed to demonstrate.
-\\ Expanded from SCUD task 3 subagent + Book 21.4
+(define parse-golden-line
+  Line -> (let Parts (split " -> " Line)
+               (if (= (length Parts) 2)
+                   [(string-to-expr (hd Parts)) -> (string-to-expr (hd (tl Parts)))]
+                   ())))
+
+\\ Placeholder converters for skeleton (real version will use Shen reader or golden-to-expr once expr.shen stabilizes).
+(define string-to-expr
+  S -> (trap-error (read-from-string S) (/. _ S)))  \\ best effort; falls back to string for surface
+
+(define read-file-as-lines
+  Path -> (let Bytes (trap-error (read-file-as-bytelist Path) (/. _ []))
+               (split-on-newline (map int-to-char Bytes))))
+
+(define split-on-newline
+  Cs -> (let Str (implode Cs)
+             (map (/. S (trim S)) (split "\n" Str))))  \\ simplistic
+
+(define trim S -> S)  \\ stub
+
+\\ Note: in full Shen this would use (read-file) + proper tokenization. For now the hardcoded golden-cases
+\\ in this file are manually kept in sync with golden/arith-21.4.txt (see review fixes).
+
+\\ For skeleton: hard-coded cases synced from golden/arith-21.4.txt (the single source of truth).
+\\ Expanded from SCUD task 3 subagent + Book 21.4.
+\\ TODO (Phase 0+): replace with real parser using load-golden-file (read lines, split on " -> ", convert to expr forms).
 (define golden-cases
   -> [
     [12 -> 12]
-    [(sym Plus) -> (sym Plus)]
-    [[(sym Plus) (int 1) (int 2)] -> [(sym Plus) (int 1) (int 2)]]
-    [[(int 12) * [(int 5) - (int 3)]] -> [(int 24)]]   \\ Book-inspired
-    [[(int 9) - (int 8)] -> (int 1)]
-    [[(int 2) + (int 3)] -> (int 5)]
-    [[(int 6) / (int 2)] -> (int 3)]
-    [[(int 4) * (int 7)] -> (int 28)]
+    [(symbol Plus) -> (symbol Plus)]
+    [[12 * [5 - 3]] -> 24]
+    [[9 - 8] -> 1]
+    [[2 + 3] -> 5]
+    [[6 / 2] -> 3]
+    [[4 * 7] -> 28]
+    [[2 + 3] * [4 - 1] -> 15]
+    [[56 + [x - 7]] -> [56 + [x - 7]]]
+    [[-245 * 67] -> -16415]
+    [[x / x] -> [x / x]]
+    [(symbol x) -> (symbol x)]
   ])
 
 \\ Run one case with trivial-reduce; return (pass? input expected got)
@@ -45,7 +79,7 @@
                 (= (length Passed) (length Cases)))))
 
 \\ Rejection fixture declarations (data only in Phase 0; harness will load/attempt later)
-\\ Sourced/enriched from SCUD task 3 (Book + plan §8.1)
+\\ Sourced/enriched from SCUD task 3 (Book + plan §8.1). See also the REJECT: lines in golden/arith-21.4.txt (source of truth for declarative fixtures).
 (define rejection-fixtures
   -> [
     "malformed-pattern: Pattern[3,5]   # Pattern name must be symbol, not literal"

@@ -9,6 +9,9 @@
 # thrash iterates application of F to fixed point.
 # simplify = (thrash X (walk F))
 # Direct Book test case: simplify (fn arith) [12 * (5-3)] produces 24 : ok-expr
+#
+# Cases where INPUT == EXPECTED test fixed-point / idempotence (e.g. no-op symbols and [x / x]).
+# Future: parser will produce expr values; reduce must be idempotent on all.
 
 12 -> 12
 (symbol Plus) -> (symbol Plus)
