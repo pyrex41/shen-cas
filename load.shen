@@ -8,11 +8,11 @@
 (load "src/rule.shen")
 (load "src/attrs.shen")
 (load "src/db.shen")
+(load "src/query.shen")
 (load "src/match.shen")
 (load "src/core.shen")
 (load "src/match-seq.shen")
 \\ (load "src/match-ac.shen") ; not yet
-\\ (load "src/query.shen")
 \\ (load "src/scope.shen")
 \\ (load "src/warn.shen")
 \\ (load "src/read.shen")
