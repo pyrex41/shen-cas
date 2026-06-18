@@ -125,16 +125,16 @@
                        (output "  (note: after canonical extension for flat/orderless, these will share content hash)~%")
                        true))
               \\ verify rejections for bad-attr combos (plan.md acceptance + golden REJECTs)
-              (let _ (trap-error (declare-symbol (protect Plus) [(protect hold-all) (protect hold-first)])
-                                 (/. _ (do (output "  declare rejected hold-all + hold-first (as expected)~%") true)))
-                   _ (trap-error (declare-structural (protect Plus) [(protect hold-all)])
-                                 (/. _ (do (output "  declare-structural rejected non-structural (hold-all)~%") true)))
-                   _ (trap-error (declare-symbol (protect Plus) [(protect listable) (intern "hold-all")])
-                                 (/. _ (do (output "  declare rejected listable + hold-all (as expected)~%") true)))
-                   _ (trap-error (declare-symbol (protect Plus) [(protect foo)])
-                                 (/. _ (do (output "  declare rejected unknown attr (via consistent-attrs?)~%") true)))
-                   (output "  (bad-attr rejections verified per plan; see also rejection-fixtures and golden/arith-21.4.txt)~%")
-                   true)
+              (do (trap-error (declare-symbol (protect Plus) [(protect hold-all) (protect hold-first)])
+                              (/. _ (do (output "  declare rejected hold-all + hold-first (as expected)~%") true)))
+                  (trap-error (declare-structural (protect Plus) [(protect hold-all)])
+                              (/. _ (do (output "  declare-structural rejected non-structural (hold-all)~%") true)))
+                  (trap-error (declare-symbol (protect Plus) [(protect listable) (intern "hold-all")])
+                              (/. _ (do (output "  declare rejected listable + hold-all (as expected)~%") true)))
+                  (trap-error (declare-symbol (protect Plus) [(protect foo)])
+                              (/. _ (do (output "  declare rejected unknown attr (via consistent-attrs?)~%") true)))
+                  (output "  (bad-attr rejections verified per plan; see also rejection-fixtures and golden/arith-21.4.txt)~%")
+                  true)
               true)
           (/. E (do (output "  (attrs demo skipped or partial; context lacks full load or prior declare: ~A)~%" E)
                     true))))
@@ -223,30 +223,43 @@
 \\ Uses query.shen helpers (plain Shen, lfp over finite edge sets).
 \\ These are executable here because query loaded (db stubbed).
 \\ Implemented: lfp, reach-step, rule-dependency-loops + from-edges variant, direct-deps stub, join, set helpers.
-\\ Tested: f->f, f->g->f (detected), acyclic chain (no loop + transitive [f h] present).
+\\ Tested: self (f->f), mutual (f<->g), chain (f->..->i), diamond (f->g/h->i), acyclic (no loop + trans).
+\\ Use (protect ...) so bare f/g act as literal symbols (harness runs without unbound var errors).
 \\ Stub: direct-deps (and all db use); integration later per task. No Prolog used.
 
 (define test-lfp-terminates-and-correct
-  _ -> (let Self [[f f]]
-            Mutual [[f g] [g f]]
-            Acyclic [[f g] [g h] [a b]]
+  _ -> (let Self [[(protect f) (protect f)]]
+            Mutual [[(protect f) (protect g)] [(protect g) (protect f)]]
+            Chain [[(protect f) (protect g)] [(protect g) (protect h)] [(protect h) (protect i)]]
+            Diamond [[(protect f) (protect g)] [(protect f) (protect h)] [(protect g) (protect i)] [(protect h) (protect i)]]
+            Acyclic [[(protect f) (protect g)] [(protect g) (protect h)] [(protect a) (protect b)]]
             LoopsSelf (rule-dependency-loops-from-edges Self)
             LoopsMut (rule-dependency-loops-from-edges Mutual)
+            LoopsChain (rule-dependency-loops-from-edges Chain)
+            LoopsDiamond (rule-dependency-loops-from-edges Diamond)
             LoopsAcyc (rule-dependency-loops-from-edges Acyclic)
+            ReachChain (reachable-from-edges Chain)
+            ReachDiamond (reachable-from-edges Diamond)
             ReachAcyc (reachable-from-edges Acyclic)
             \\ checks without relying on filter/sort/str list
-            HasF (element? f LoopsSelf)
-            HasFmut (element? f LoopsMut)
-            HasGmut (element? g LoopsMut)
+            HasF (element? (protect f) LoopsSelf)
+            HasFmut (element? (protect f) LoopsMut)
+            HasGmut (element? (protect g) LoopsMut)
+            NoChain (empty? LoopsChain)
+            NoDiamond (empty? LoopsDiamond)
             NoAcyc (empty? LoopsAcyc)
-            HasTrans (element? [f h] ReachAcyc)
-            (and HasF HasFmut HasGmut NoAcyc HasTrans)))
+            HasTransChain (element? [(protect f) (protect i)] ReachChain)
+            HasTransDiamond (element? [(protect f) (protect i)] ReachDiamond)
+            HasTrans (element? [(protect f) (protect h)] ReachAcyc)
+            (and HasF HasFmut HasGmut
+                 NoChain NoDiamond NoAcyc
+                 HasTransChain HasTransDiamond HasTrans)))
 
 \\ run the 11.3 specific test (uses output; if I/O fails in some loads, direct call test fn)
 (define run-lfp-tests
   _ -> (let Ok (test-lfp-terminates-and-correct [])
             (do (if Ok
-                    (output "lfp/loop tests: PASS (self f->f, mutual f->g->f, acyclic, trans via lfp)~%")
+                    (output "lfp/loop tests: PASS (self, mutual, chain, diamond, acyclic, trans via lfp)~%")
                     (output "lfp/loop tests: FAIL~%"))
                 Ok)))
 

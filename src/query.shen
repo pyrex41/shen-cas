@@ -107,7 +107,7 @@
 (define rule-dependency-loops
   Db -> (let Edges (direct-deps Db)
              Reach (lfp Edges (/. R (reach-step Edges R)))
-             (heads-in-cycles (my-filter self-edge? Reach))))
+             (heads-in-cycles (my-filter (fn self-edge?) Reach))))
 
 \\ --- pure testable entrypoint for SCUD 11.3 verification (no db needed) ---
 \\ Accepts a list of edges e.g. [[f g] [g f]] or [[f f]] or [[f g] [g h]]
@@ -115,7 +115,7 @@
 (define rule-dependency-loops-from-edges
   Edges -> (let Norm (dedup Edges)
               Reach (lfp Norm (/. R (reach-step Norm R)))
-              (heads-in-cycles (my-filter self-edge? Reach))))
+              (heads-in-cycles (my-filter (fn self-edge?) Reach))))
 
 \\ --- simple reachability via lfp for tests (transitive closure) ---
 (define reachable-from-edges
