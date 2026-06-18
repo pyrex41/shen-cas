@@ -43,19 +43,21 @@
   Old New [H | As] -> [(rename-one Old New H) | (map (/. X (rename-one Old New X)) As)]
   Old New X -> X)
 
-(define alpha-canonicalize
+(define scope-alpha-canonicalize
   [ [sym module] Vars Body ] ->
     (let Bare (map ensure-bare-symbol Vars)
          Canon (generate-canon-bare (length Bare))
-         NormBody (alpha-canonicalize (rename-in-expr Bare Canon Body))
+         NormBody (scope-alpha-canonicalize (rename-in-expr Bare Canon Body))
          [ [sym module] Canon NormBody ])
   [ [sym with] V Val Body ] ->
     (let Bare (ensure-bare-symbol V)
          Canon (hd (generate-canon-bare 1))
-         NormBody (alpha-canonicalize (rename-in-expr [Bare] [Canon] Body))
+         NormBody (scope-alpha-canonicalize (rename-in-expr [Bare] [Canon] Body))
          [ [sym with] Canon Val NormBody ])
-  [H | Args] -> [(alpha-canonicalize H) | (map alpha-canonicalize Args)]
+  [H | Args] -> [(scope-alpha-canonicalize H) | (map scope-alpha-canonicalize Args)]
   E -> E)
+
+(define alpha-canonicalize scope-alpha-canonicalize)
 
 \\ --- Scoping forms ---
 

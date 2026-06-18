@@ -3,7 +3,7 @@
 
 @meta {
   name init
-  updated 2026-06-18T21:23:55Z
+  updated 2026-06-18T21:28:47Z
 }
 
 @nodes
@@ -31,7 +31,7 @@
 10.2 | Replace naive rule list, add basis-keyed normal-form memoization, and update core to basis-aware evaluation | P | 0 | H
 11 | Add dispatch index and static analysis layer | X | 8 | H
 11.1 | Implement native basis-keyed dispatch index | P | 0 | H
-11.2 | Implement cold analysis relations and warnings | P | 0 | H
+11.2 | Implement cold analysis relations and warnings | D | 0 | H
 11.3 | Implement least-fixpoint loop detection | P | 0 | H
 12 | Add checked scoping forms | X | 5 | H
 12.1 | Implement Module and With with hygienic alpha handling | P | 0 | H

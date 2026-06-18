@@ -73,10 +73,14 @@
   E -> (normal-form-db (value *db*) E))
 
 \\ Naive registration of arith rules (now delegated to boot/arith.shen skeleton for SCUD 13.1)
+(set *arith-booted* false)
+
 (define demo-register-arith
-  -> (do 
-       (load "boot/arith.shen")
-       true))
+  -> (if (value *arith-booted*)
+          true
+          (do (load "boot/arith.shen")
+              (set *arith-booted* true)
+              true)))
 
 (define demo-reduce
   E -> (let Ign (demo-register-arith)
