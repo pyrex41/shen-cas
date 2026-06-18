@@ -1,19 +1,14 @@
 \\ store.shen - content-addressed term store (Phase 1 core)
-\\ Merkle content hashes + interning + O(1) equality
-\\ No basis/memo/rule-driven equality yet (added later).
-\\ Structural signatures (for Orderless/Flat later) stubbed as immutable.
-
-\\ Content hash representation (skeleton; replace with stable portable impl)
-\\ For now: a simple structure-based "hash" that is deterministic and
-\\ supports O(1) structural equality via interned identity or value compare.
-\\ TODO (5.1): choose real portable hash (Shen hash + tree or string digest).
+\\ Merkle content hashes + interning + O(1) equality (per notes/syntax-verification.md task 4)
+\\ Hash choice: portable recursive Shen (hash ... 1000000007) after canonicalization.
+\\ No basis/memo/rule-driven equality yet.
+\\ Structural signatures (Orderless/Flat/OneIdentity) are immutable creation facts.
 
 (datatype content-hash
-  H : string;
+  H : number;
   ________________
   (ch H) : content-hash;)
 
-\\ Intern table stub: hash -> interned node (association list for skeleton)
 (set *intern-table* [])
 
 (define intern-lookup
@@ -22,37 +17,50 @@
 (define intern-store
   H Node Table -> (adjoin [H Node] Table))
 
-\\ Canonical constructors (will consult structural sig later)
+\\ --- Hash per task-4 policy (notes/syntax-verification.md) ---
+(define portable-atom-string
+  Tag Val -> (cn (str Tag) (if (symbol? Val) (str Val) (str Val))))
+
+(define hash-atom
+  Tag Val -> (hash (portable-atom-string Tag Val) 1000000007))
+
+(define hash-compound
+  H ArgHashes -> (hash (cn (str H) (fold-left cn "" (map str ArgHashes))) 1000000007))
+
+(define content-hash
+  (sym S) -> (ch (hash-atom "sym" S))
+  (int N) -> (ch (hash-atom "int" N))
+  [H | Args] -> (let Hh (content-hash H)
+                     Ah (map content-hash Args)
+                     (ch (hash-compound (unwrap-ch Hh) (map unwrap-ch Ah)))))
+
+(define unwrap-ch
+  (ch N) -> N)
+
+\\ Canonical constructors (later consult sigs for Orderless/Flat before hashing)
 (define make-sym
-  S -> (sym S))   \\ later: hash + intern
+  S -> (sym S))
 
 (define make-int
   N -> (int N))
 
 (define make-compound
-  H Args -> [H | Args])  \\ later: compute hash, canonicalize per sig, intern
-
-\\ Public API skeleton (design §5.1 + tasks 5/5.1/5.2)
-(define content-hash
-  (sym S) -> (ch (cn "sym:" (str S)))
-  (int N) -> (ch (cn "int:" (str N)))
-  [H | Args] -> (let ArgHs (map content-hash Args)
-                     (ch (cn "c:" (cn (str (content-hash H)) (str ArgHs))))))
+  H Args -> [H | Args])
 
 (define intern
   E -> (let H (content-hash E)
-            (intern-lookup H (value *intern-table*))))
+            (intern-lookup (unwrap-ch H) (value *intern-table*))))
 
 (define intern!
   E -> (let H (content-hash E)
-            Node E   \\ simplified: the expr itself for skeleton
-            _ (set *intern-table* (intern-store H Node (value *intern-table*)))
+            Node E
+            _ (set *intern-table* (intern-store (unwrap-ch H) Node (value *intern-table*)))
             Node))
 
 (define content-eq
-  A B -> (= (content-hash A) (content-hash B)))   \\ O(1) after real hash + intern
+  A B -> (= (content-hash A) (content-hash B)))
 
-\\ Structural signature registry stub (5.3 later; immutable after first use)
+\\ Structural sig registry (immutable after first use; 5.3)
 (set *structural-sigs* [])
 
 (define declare-structural-sig
@@ -63,4 +71,4 @@
 (define get-structural-sig
   Sym -> (assoc Sym (value *structural-sigs*)))
 
-(princ "store.shen skeleton loaded (hash/intern/eq + sig stub).~%")
+(princ "store.shen loaded (Merkle hash per task-4 policy, intern, eq, sig stub).~%")
