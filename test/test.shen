@@ -158,6 +158,59 @@
                 (output "Phase1: explicit bindings-cover? on unbound-rhs example: ~A (expect false)~%" BadCov)
                 (and C1 C2 (not BadCov)))))
 
+\\ SCUD 7.2: direct tests for extract-bindings + pattern utilities (recognizers, binding helpers)
+\\ Covers named (regular + seq), compounds, alts/conds, seqs ignored, literals, unique, has etc.
+(define test-extract-bindings-and-utils
+  _ -> (let P0 (named x (blank))
+            P1 [(sym Plus) (int 0) (named x (blank))]
+            P2 [(sym f) (named xs (blank-seq)) (named y (blank))]
+            P3 [(sym g) [named z [blank-null-seq]]]
+            P4 (alt (named a (blank)) (named b (blank)))
+            P5 (condition (named c (blank)) (sym true))
+            Lit [(sym Plus) (int 1) (int 2)]
+            B0 (extract-bindings P0)
+            B1 (extract-bindings P1)
+            B2 (extract-bindings P2)
+            B3 (extract-bindings P3)
+            B4 (extract-bindings P4)
+            B5 (extract-bindings P5)
+            BLit (extract-bindings Lit)
+            Bseq (extract-bindings [blank-seq])
+            U2 (unique-bindings (extract-bindings P2))
+            Has (has-bindings? P2)
+            NoHas (has-bindings? Lit)
+            NamedP (named? P0)
+            BlankP (blank? (blank))
+            CompP (compound-pattern? P1)
+            SeqP (seq-pattern? (blank-seq))
+            Ns (named? [(named xs (blank-seq))])  ; note form
+            (do (output "7.2: extract named: ~A~%" B0)
+                (output "7.2: extract compound + named: ~A~%" B1)
+                (output "7.2: extract compound + named-seq + named: ~A~%" B2)
+                (output "7.2: extract named-null-seq: ~A~%" B3)
+                (output "7.2: extract alt: ~A~%" B4)
+                (output "7.2: extract condition: ~A~%" B5)
+                (output "7.2: extract literal: ~A (expect [])~%" BLit)
+                (output "7.2: extract bare seq: ~A (expect [])~%" Bseq)
+                (output "7.2: unique on seq case: ~A~%" U2)
+                (output "7.2: recognizers named? ~A blank? ~A compound? ~A seq? ~A~%" NamedP BlankP CompP SeqP)
+                (and (= B0 [x])
+                     (= B1 [x])
+                     (= B2 [xs y])
+                     (= B3 [z])
+                     (= B4 [a b])
+                     (= B5 [c])
+                     (= BLit [])
+                     (= Bseq [])
+                     (= U2 [xs y])
+                     Has
+                     (not NoHas)
+                     NamedP
+                     BlankP
+                     CompP
+                     SeqP
+                     (named? [named xs [blank-seq]])))))
+
 (define phase1-use-register-reduce
   _ -> (do (register-rule (rule [(sym Plus) (int 0) (named x (blank))] (sym x)))
            (register-rule (rule [(sym Plus) (named x (blank)) (int 0)] (sym x)))
@@ -223,12 +276,13 @@
 (define run-phase1-skeleton
   _ -> (let _ (output "~%=== Phase 1 skeleton exercises ===~%")
             b (phase1-explicit-bindings-cover-examples [])
+            e (test-extract-bindings-and-utils [])
             u (phase1-use-register-reduce [])
             h (phase1-content-hash-sharing-orderless-flat [])
             a (phase1-boot-arith-simplifications [])
             i1 (phase1-golden-noop-idemp-trivial [])
             i2 (phase1-kernel-idempotence-noop [])
-            All (and b u h a i1 i2)
+            All (and b e u h a i1 i2)
             (do (output "Phase 1 skeleton: ~A~%" (if All "PASS" "FAIL"))
                 All)))
 

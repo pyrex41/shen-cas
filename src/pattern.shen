@@ -59,42 +59,141 @@
   [H | Args] : pattern; )
 
 \\ Reserved pattern heads (distinct from expr symbols so (Pattern ...) etc. can't be confused with literal exprs)
-(define blank      _   -> (blank))
-(define blank-seq  _   -> blank-seq)     ; return the symbol tag (fixed non-recursive)
-(define blank-null _   -> blank-null-seq)
-(define named      N P -> (list 'named N P))  ; explicit tag list for named (to support seq sub)
-(define condition  P T -> (condition P T))
-(define ptest      P F -> (ptest P F))
-(define alt        P1 P2 -> (alt P1 P2))
+\\ Constructors use cons + intern to produce canonical list forms (avoids [] ctor analysis issues):
+\\   (cons (intern "blank") ()) | (cons (intern "blank") (cons H ()))
+\\   (cons (intern "blank-seq") ()) etc.
+\\   (cons (intern "named") (cons N (cons P ()))) 
+(define blank -> (cons (intern "blank") ()))
+(define blank-seq -> (cons (intern "blank-seq") ()))
+(define blank-null -> (cons (intern "blank-null-seq") ()))
+(define named N P -> (cons (intern "named") (cons N (cons P ()))))
+(define condition P T -> (cons (intern "condition") (cons P (cons T ()))))
+(define ptest P F -> (cons (intern "ptest") (cons P (cons F ()))))
+(define alt P1 P2 -> (cons (intern "alt") (cons P1 (cons P2 ()))))
 
-\\ Note: compound patterns are just lists whose elements are pat-or-seq.
-\\ We rely on the datatype rules above for static checking when using sequents.
+\\ Note: compound patterns are lists [H | Args] (H pattern-or-expr, Args pat-or-seq).
+\\ Datatype enforces seq only in arg lists. Runtime forms are lists.
 
-\\ --- Binding extraction (stub for Phase 1, sufficient for bindings-cover) ---
+\\ --- Pattern recognizers (supporting extract, match, future covers) ---
+\\ Use hd/tl + intern for robustness (no list pattern ctor syntax on tags)
 
-(define extract-bindings
-  [(list 'named) Name _] -> [Name]   ; updated for list tag ctor
-  (named Name _) -> [Name]           ; keep for compatibility
-  [H | Args] -> (append (extract-bindings H)
-                        (mapcan (fn extract-bindings) (filter pattern? Args)))
-  _ -> [])
+(define blank?
+  X -> (and (cons? X) (= (hd X) (intern "blank"))))
+
+(define blank-typed?
+  X -> (and (cons? X) (= (hd X) (intern "blank")) (cons? (tl X))))
+
+(define named?
+  X -> (and (cons? X) (= (hd X) (intern "named")) (= (length X) 3)))
+
+(define named-name
+  X -> (if (named? X) (hd (tl X)) (error "named-name: not a named form ~A" X)))
+
+(define named-subpattern
+  X -> (if (named? X) (hd (tl (tl X))) (error "named-subpattern: not a named form ~A" X)))
+
+(define seq-pattern?
+  X -> (or (blank-seq? X) (blank-null-seq? X)))
+
+(define blank-seq?
+  X -> (and (cons? X) (= (hd X) (intern "blank-seq"))))
+
+(define blank-null-seq?
+  X -> (and (cons? X) (= (hd X) (intern "blank-null-seq"))))
+
+(define condition?
+  X -> (and (cons? X) (= (hd X) (intern "condition")) (cons? (tl X))))
+
+(define ptest?
+  X -> (and (cons? X) (= (hd X) (intern "ptest")) (cons? (tl X))))
+
+(define alt?
+  X -> (and (cons? X) (= (hd X) (intern "alt")) (cons? (tl X))))
+
+(define tagged-pattern-form?
+  X -> (or (named? X) (blank? X) (blank-typed? X) (condition? X) (ptest? X) (alt? X) (seq-pattern? X))
+  _ -> false)
+
+(define expr-form?
+  P -> (and (cons? P) (element? (hd P) [(intern "sym") (intern "int") (intern "real") (intern "str")]))
+  _ -> false)
+
+(define compound-pattern?
+  P -> (and (cons? P)
+            (not (tagged-pattern-form? P))
+            (not (expr-form? P)))
+  _ -> false)
+
+(define compound-pattern-head
+  P -> (if (compound-pattern? P) (hd P) (error "compound-pattern-head: not ~A" P)))
+
+(define compound-pattern-args
+  P -> (if (compound-pattern? P) (tl P) (error "compound-pattern-args: not ~A" P)))
+
+(define alt-left
+  P -> (if (alt? P) (hd (tl P)) (error "alt-left ~A" P)))
+
+(define alt-right
+  P -> (if (alt? P) (hd (tl (tl P))) (error "alt-right ~A" P)))
+
+(define condition-pattern
+  P -> (if (condition? P) (hd (tl P)) (error "condition-pattern ~A" P)))
+
+(define ptest-pattern
+  P -> (if (ptest? P) (hd (tl P)) (error "ptest-pattern ~A" P)))
 
 (define pattern?
-  P -> (or (blank? P) (blank-typed? P) (named? P) (compound-pattern? P) (condition? P) (ptest? P) (alt? P)))
+  P -> (or (blank? P)
+           (blank-typed? P)
+           (named? P)
+           (condition? P)
+           (ptest? P)
+           (alt? P)
+           (compound-pattern? P)
+           (expr-form? P)))
 
-(define blank? (blank) -> true ; _ -> false)
-(define blank-typed? [(blank) _] -> true ; _ -> false)   \\ simplistic
-(define named? [(list 'named) _ _] -> true ; _ -> false)  ; updated for list tag
-(define compound-pattern? [H | _] -> (and (pattern? H) true) where (not (symbol? H)) ; _ -> false)
-(define condition? [(condition) _ _] -> true ; _ -> false)
-(define ptest? [(ptest) _ _] -> true ; _ -> false)
-(define alt? [(alt) _ _] -> true ; _ -> false)
+\\ --- Binding extraction (collect named from patterns; handle compounds/seqs per datatype) ---
+\\ Names from (named Name sub) + recursive from sub (so match's inner bindings covered).
+\\ Unnamed seq [blank-seq] etc and literals contribute nothing.
+\\ Compound recurses head + all arg elements (named-seq caught via named?).
 
-\\ Simple recognizers for compound heads
-(define compound-pattern-head
-  [H | _] -> H)
+(define extract-bindings
+  P -> (if (named? P)
+           (cons (named-name P) (extract-bindings (named-subpattern P)))
+           (if (compound-pattern? P)
+               (append (extract-bindings (compound-pattern-head P))
+                       (mapcan extract-bindings (compound-pattern-args P)))
+               (if (alt? P)
+                   (append (extract-bindings (alt-left P)) (extract-bindings (alt-right P)))
+                   (if (condition? P)
+                       (extract-bindings (condition-pattern P))
+                       (if (ptest? P)
+                           (extract-bindings (ptest-pattern P))
+                           []))))))
+
+\\ --- Binding list helpers (for bindings-cover? and later Datalog covers?) ---
+(define my-remove
+  X L -> (if (cons? L)
+             (if (= X (hd L))
+                 (my-remove X (tl L))
+                 (cons (hd L) (my-remove X (tl L))))
+             []))
+
+(define dedup
+  L -> (if (cons? L)
+           (cons (hd L) (dedup (my-remove (hd L) (tl L))))
+           []))
+
+(define unique-bindings
+  Binds -> (dedup Binds))
+
+(define bindings
+  P -> (unique-bindings (extract-bindings P)))
+
+(define has-bindings?
+  P -> (not (empty? (extract-bindings P))))
 
 \\ --- Integration with store (patterns are also content-addressable in later phases) ---
 \\ For Phase 1 we keep them as ordinary structures but can intern if desired.
 
-(princ "pattern.shen loaded (datatypes + reserved ctors + extract-bindings stub).~%")
+(princ "pattern.shen loaded (datatypes + reserved ctors + robust extract-bindings + pattern utilities).~%")

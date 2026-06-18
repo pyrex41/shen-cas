@@ -3,7 +3,7 @@
 
 @meta {
   name init
-  updated 2026-06-18T19:57:18Z
+  updated 2026-06-18T21:23:55Z
 }
 
 @nodes
@@ -19,7 +19,7 @@
 6 | Define expr datatype and canonical constructors | D | 3 | H
 7 | Implement first-order pattern language | X | 5 | H
 7.1 | Define pattern vs seq-pattern datatypes, reserved constructors, and compound typing rules | P | 0 | H
-7.2 | Add extract-bindings stubs and pattern utilities | P | 0 | H
+7.2 | Add extract-bindings stubs and pattern utilities | D | 0 | H
 8 | Build checked rules, first-order matcher, and naive reduce | X | 8 | H
 8.1 | Implement checked-rule datatype and binding analysis in rule.shen | P | 0 | H
 8.2 | Implement first-order matcher, substitution, and naive reduce in match.shen + core.shen | P | 0 | H
