@@ -15,11 +15,17 @@
   Path -> (trap-error (read-file-as-bytelist Path) (/. _ [])))   \\ placeholder; real impl uses line parse
 
 \\ For skeleton: hard-coded cases + one file-backed to demonstrate.
+\\ Expanded from SCUD task 3 subagent + Book 21.4
 (define golden-cases
   -> [
     [12 -> 12]
     [(sym Plus) -> (sym Plus)]
-    [[(sym Plus) [(int 1)] [(int 2)]] -> [(sym Plus) [(int 1)] [(int 2)]]]   \\ trivial
+    [[(sym Plus) (int 1) (int 2)] -> [(sym Plus) (int 1) (int 2)]]
+    [[(int 12) * [(int 5) - (int 3)]] -> [(int 24)]]   \\ Book-inspired
+    [[(int 9) - (int 8)] -> (int 1)]
+    [[(int 2) + (int 3)] -> (int 5)]
+    [[(int 6) / (int 2)] -> (int 3)]
+    [[(int 4) * (int 7)] -> (int 28)]
   ])
 
 \\ Run one case with trivial-reduce; return (pass? input expected got)
@@ -39,12 +45,18 @@
                 (= (length Passed) (length Cases)))))
 
 \\ Rejection fixture declarations (data only in Phase 0; harness will load/attempt later)
+\\ Sourced/enriched from SCUD task 3 (Book + plan §8.1)
 (define rejection-fixtures
   -> [
-    "malformed-pattern: (Pattern 3 5) should reject at pattern construction"
-    "seq-out-of-arg: (named x (blank-seq)) outside compound arg list"
-    "unbound-rhs: rule with free var on RHS not bound on LHS"
-    "bad-attrs: hold-all + hold-first"
+    "malformed-pattern: Pattern[3,5]   # Pattern name must be symbol, not literal"
+    "malformed-pattern: (pattern 3 5)"
+    "seq-outside-arg: (named x (blank-seq))   # seq-patterns only inside compound arg lists"
+    "seq-outside-arg: (blank-seq)             # not at head or top level"
+    "unbound-rhs: x_ -> y                     # y unbound on LHS (and not builtin)"
+    "unbound-rhs: {x_ y_ -> z}"
+    "bad-attr: hold-all + hold-first"
+    "bad-attr: listable + hold-all            # without explicit opt-in"
+    "bad-attr: (hold-all hold-first)"
   ])
 
 (define run-rejection-tests

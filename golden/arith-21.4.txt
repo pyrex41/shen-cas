@@ -1,9 +1,47 @@
-# Golden corpus (Phase 0+). Format: EXPR -> EXPECTED (s-expr form for skeleton)
-# Sourced/inspired by Book of Shen 4th ed. 21.4 and plan examples.
-# Later roundtrips with reader.
+# Initial golden corpus (Phase 0 skeleton, from Book of Shen 21.4)
+# Source: The Book of Shen 4th ed. pp.274- (section 21.4 Algebraic Simplification)
+#   + excerpts in book_of_shen_cas_relevant.md
+# Format (evolving): one case per relevant line or block
+# "input-expr" -> "expected-nf"
+# Uses readable list/compound notation inspired by book's [X Op Y] fully-parenthesised exprs.
+# arith reduces only number operands via the op (constant folding).
+# walk recurses applying F to subexprs.
+# thrash iterates application of F to fixed point.
+# simplify = (thrash X (walk F))
+# Direct Book test case: simplify (fn arith) [12 * (5-3)] produces 24 : ok-expr
 
 12 -> 12
-(sym Plus) -> (sym Plus)
-[(sym Plus) (int 1) (int 2)] -> [(sym Plus) (int 1) (int 2)]
-[(int 12) * [(int 5) - (int 3)]] -> [(int 24)]   # illustrative; real arith later
+(symbol Plus) -> (symbol Plus)
+[12 * [5 - 3]] -> 24
+[9 - 8] -> 1
+[2 + 3] -> 5
+[6 / 2] -> 3
+[4 * 7] -> 28
+[[2 + 3] * [4 - 1]] -> 15
+[56 + [x - 7]] -> [56 + [x - 7]]
+[-245 * 67] -> -16415
+[x / x] -> [x / x]
+(symbol x) -> (symbol x)
+
+# Rejection test declarations (declarative fixtures, pre-kernel)
+# Harness (see test/test.shen) will later consume these to assert
+# definition-time / registration-time / load-time errors.
+# Per plan.md + design.md §8.1 + SCUD task 3:
+#   - malformed patterns (e.g. non-symbol in Pattern ctor)
+#   - sequence variables/patterns outside argument position
+#   - unbound RHS variables (not bound by LHS and not known builtin)
+#   - bad/inconsistent attributes (even before attrs.shen)
+#   - (later: bad block bindings etc.)
+# These are frozen expectations; never remove, only add.
+
+# REJECT declarations (category: description of bad construct)
+REJECT: malformed-pattern: Pattern[3,5]   # Pattern name must be symbol, not literal
+REJECT: malformed-pattern: (pattern 3 5)
+REJECT: seq-outside-arg: (named x (blank-seq))   # seq-patterns only inside compound arg lists
+REJECT: seq-outside-arg: (blank-seq)             # not at head or top level
+REJECT: unbound-rhs: x_ -> y                     # y unbound on LHS (and not builtin)
+REJECT: unbound-rhs: {x_ y_ -> z}
+REJECT: bad-attr: hold-all + hold-first
+REJECT: bad-attr: listable + hold-all            # without explicit opt-in
+REJECT: bad-attr: (hold-all hold-first)
 
