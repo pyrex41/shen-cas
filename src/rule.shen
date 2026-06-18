@@ -4,33 +4,33 @@
 
 (load "src/expr.shen")
 (load "src/pattern.shen")
+(load "src/db.shen")
 
-(datatype checked-rule
-  LHS : pattern;
-  RHS : expr;
-  (bindings-cover? LHS RHS);
-  _________________________
-  (rule LHS RHS) : checked-rule; )
+(define rule L R -> [rule L R])
 
 \\ Free symbols in an expr (for RHS coverage)
 (define free-symbols
-  (sym S) -> [S]
-  (int _) -> []
-  [H | Args] -> (append (free-symbols H) (mapcan (fn free-symbols) Args))
+  [sym S] -> [S]
+  [int _] -> []
+  [H | Args] -> (append (free-symbols H) (mapcan (/. X (free-symbols X)) Args))
   _ -> [])
 
 \\ Known "globals" / builtins for Phase 1 (expand when db arrives)
 (define phase1-globals
-  -> [Plus Times Minus Divide Power If True False List])  ; bare symbols; free-symbols emits bare S
+  -> [(protect Plus) (protect Times) (protect Minus) (protect Divide) (protect Power) (protect If) (protect True) (protect False) (protect List)])  ; protected symbols; free-symbols emits bare S; protect avoids free var
 
 (define known-symbol?
   S -> (element? S (phase1-globals)))
 
+(define filter
+  _ [] -> []
+  F [X | Xs] -> (if (F X) [X | (filter F Xs)] (filter F Xs)))
+
 (define rule-lhs
-  (rule L _) -> L)
+  [rule L _] -> L)
 
 (define rule-rhs
-  (rule _ R) -> R)
+  [rule _ R] -> R)
 
 (define bindings-cover?
   LHS RHS ->
@@ -44,17 +44,30 @@
              (do (output "bindings-cover? failed; unbound: ~A~%" Unknown)
                  false))))
 
-\\ Registration helper (naive list for Phase 1; db later)
-(set *rules* [])
+(datatype checked-rule
+  LHS : pattern;
+  RHS : expr;
+  (bindings-cover? LHS RHS);
+  _________________________
+  (rule LHS RHS) : checked-rule; )
+
+\\ Registration via db assert (SCUD 10.2)
+(set *db* (empty-db))
+
+(define rule-head
+  (rule L _) -> (if (cons? L) (hd L) L))
 
 (define register-rule
   R -> (if (and (checked-rule? R)
                 (bindings-cover? (rule-lhs R) (rule-rhs R)))
-           (set *rules* (adjoin R (value *rules*)))
+           (let Sym (rule-head R)
+                Kind down
+                _ (set *db* (assert-rule (value *db*) Sym Kind R))
+                R)
            (error "register-rule: not a checked-rule or bindings not covered ~A" R)))
 
 (define checked-rule? 
-  (rule _ _) -> true
+  [rule _ _] -> true
   _ -> false)
 
-(princ "rule.shen loaded (checked-rule + bindings-cover).~%")
+(output "rule.shen loaded (checked-rule + bindings-cover).~%")

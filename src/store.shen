@@ -146,4 +146,16 @@
                          [X Y | Ys]
                          [Y | (insert-by Pred X Ys)]))
 
-(output "store.shen loaded (Merkle hash + attrs flat/orderless canonical in content-hash path).~%")
+\\ --- normal-form memo: content-hash + basis keyed (SCUD 10.2) ---
+(set *normal-form-cache* [])
+
+(define nf-cache-key
+  CH BH -> [(unwrap-ch CH) BH])
+
+(define nf-lookup
+  Key -> (assoc Key (value *normal-form-cache*)))
+
+(define nf-store!
+  Key Val -> (set *normal-form-cache* (adjoin [Key Val] (value *normal-form-cache*))))
+
+(output "store.shen loaded (Merkle hash + attrs flat/orderless canonical in content-hash path + nf memo).~%")
