@@ -4,6 +4,7 @@
 (load "src/store.shen")
 (load "src/expr.shen")
 (load "src/pattern.shen")
+(load "src/pattern.shen")
 (load "src/rule.shen")
 (load "src/attrs.shen")
 (load "src/match.shen")
