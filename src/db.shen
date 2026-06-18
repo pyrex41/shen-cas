@@ -12,7 +12,7 @@
   Db -> Db)
 
 (define compute-basis
-  Ds -> (cn "basis:" (str (length Ds))))
+  Ds -> (cn "basis:" (str (hash (str Ds) 1000000007))))  ;; content-derived placeholder (stub; real Merkle when store integration)
 
 (define db-basis
   Db -> (compute-basis (db-datoms Db)))
@@ -30,11 +30,17 @@
 (define assert-attribute
   Db Sym Attr -> (append (db-datoms Db) [[Sym Attr (length (db-datoms Db))]]))
 
+(define rule-datom?
+  D -> (and (cons? D) (= (length D) 4) (element? (hd (tl D)) [own down up])))
+
+(define attr-datom?
+  D -> (and (cons? D) (= (length D) 3)))
+
 (define symbol-entry-view
   Db Sym ->
     (let Ds (db-datoms Db)
-         Rs (filter (/. D (and (cons? D) (= (hd D) Sym) (element? (hd (tl D)) [own down up]))) Ds)
-         As (filter (/. D (and (cons? D) (= (hd D) Sym))) Ds)
+         Rs (filter (/. D (and (= (hd D) Sym) (rule-datom? D))) Ds)
+         As (filter (/. D (and (= (hd D) Sym) (attr-datom? D))) Ds)
          Own (map (/. D (hd (tl (tl D)))) (filter (/. D (= (hd (tl D)) own)) Rs))
          Down (map (/. D (hd (tl (tl D)))) (filter (/. D (= (hd (tl D)) down)) Rs))
          Up (map (/. D (hd (tl (tl D)))) (filter (/. D (= (hd (tl D)) up)) Rs))
@@ -53,4 +59,4 @@
   Db -> (length (db-datoms Db)))
 
 (define db-rule-count
-  Db -> (length (filter (/. D (and (cons? D) (element? (hd (tl D)) [own down up]))) (db-datoms Db))))
+  Db -> (length (filter rule-datom? (db-datoms Db))))
