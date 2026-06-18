@@ -11,8 +11,19 @@
 (define db-datoms
   Db -> Db)
 
+(define filter
+  _ [] -> []
+  F [X | Xs] -> (if (F X) [X | (filter F Xs)] (filter F Xs)))
+
+(define basis-token
+  [] -> "[]"
+  [X | Xs] -> (cn "[" (cn (basis-token X) (cn "|" (cn (basis-token Xs) "]"))))
+  X -> (str X) where (symbol? X)
+  X -> (str X) where (number? X)
+  X -> (str X))
+
 (define compute-basis
-  Ds -> (cn "basis:" (str (length Ds))))  \\ skeleton basis id (real Merkle over datom hashes later)
+  Ds -> (cn "basis:" (str (hash (basis-token Ds) 1000000007))))  \\ content-derived skeleton basis id
 
 (define db-basis
   Db -> (compute-basis (db-datoms Db)))
@@ -22,8 +33,8 @@
 
 \\ rule rep in skeleton
 (define make-rule-datum L R -> [rule L R])
-(define make-rule-stub L R -> [rule L R])  ; alias for compatibility (reviewer 019edc98-07ed...)
-(define checked-rule? _ -> true)
+(define make-rule-stub L R -> [rule L R])  \\ alias for compatibility
+(define checked-rule? X -> true)
 
 (define assert-rule
   Db Sym Kind R -> (append (db-datoms Db) [[Sym Kind R (length (db-datoms Db))]]))
@@ -60,4 +71,4 @@
   Db -> (length (db-datoms Db)))
 
 (define db-rule-count
-  Db -> (length (filter rule-datom? (db-datoms Db))))
+  Db -> (length (filter (/. D (rule-datom? D)) (db-datoms Db))))

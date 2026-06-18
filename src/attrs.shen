@@ -74,7 +74,7 @@
 
 (define valid-attrs?
   AS -> (and (list? AS)
-             (every attribute? AS)
+             (every (/. A (attribute? A)) AS)
              (consistent-attrs? AS)))
 
 \\ --- Datatypes (following sketch §5 for future sequent use; side conditions supported) ---
@@ -115,7 +115,7 @@
     (if (not (list? Attrs))
         (error "declare-symbol: second arg must be a list of attributes, got ~A" Attrs)
         (if (consistent-attrs? Attrs)
-            (let Struct (attrs-filter structural-attribute? Attrs)
+            (let Struct (attrs-filter (/. A (structural-attribute? A)) Attrs)
                  _ (if (empty? Struct)
                        true
                        (declare-structural-sig Sym Struct))
@@ -126,7 +126,7 @@
 \\ Convenience: declare only structural attrs (sugar, still validates)
 (define declare-structural
   Sym StructAttrs ->
-    (if (every structural-attribute? StructAttrs)
+    (if (every (/. A (structural-attribute? A)) StructAttrs)
         (declare-symbol Sym StructAttrs)
         (error "declare-structural: non-structural attrs supplied for ~A: ~A" Sym StructAttrs)))
 

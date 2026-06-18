@@ -28,7 +28,7 @@
 (define pretty-expr
   [sym S] -> S
   [int N] -> N
-  [H | Args] -> [(pretty-expr H) | (map pretty-expr Args)]
+  [H | Args] -> [(pretty-expr H) | (map (/. A (pretty-expr A)) Args)]
   E -> E)
 
 (output "expr.shen loaded (datatypes + store constructors).~%")

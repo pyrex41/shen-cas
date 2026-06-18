@@ -43,7 +43,7 @@
   [int N] -> [ch (hash-atom "int" N)]
   [H | Args] -> (let Hh (content-hash* H)
                      Ah (canonical-arg-hashes H Args)
-                     [ch (hash-compound (unwrap-ch Hh) (map unwrap-ch Ah))])
+                     [ch (hash-compound (unwrap-ch Hh) (map (/. X (unwrap-ch X)) Ah))])
   _ -> [ch (hash-atom "other" 0)])
 
 (define content-hash
@@ -99,6 +99,11 @@
 (define get-structural-sig
   Sym -> (assoc Sym (value *structural-sigs*)))
 
+(define ensure-structural-sig
+  Sym -> (if (sig-present? Sym)
+             true
+             (declare-structural-sig Sym [])))
+
 \\ --- Structural sig helpers for canonicalization (Orderless/Flat affect hash only in Phase 1 skeleton) ---
 \\ Per notes/syntax-verification.md §4 and design §5.1: sigs are immutable creation facts;
 \\ content hash must be stable and db-independent. Compare via str names to avoid load-order free-var issues.
@@ -132,13 +137,14 @@
   H Args ->
     (if (sym? H)
         (let S (sym-name H)
+             _ (ensure-structural-sig S)
              Raw (if (has-flat? S)
                      (flatten-args-for-hash S Args)
-                     (map content-hash Args))
+                     (map (/. A (content-hash A)) Args))
              (if (has-orderless? S)
                  (sort-hashes Raw)
                  Raw))
-        (map content-hash Args)))
+        (map (/. A (content-hash A)) Args)))
 
 (define flatten-args-for-hash
   S [] -> []

@@ -5,51 +5,61 @@
 (load "src/expr.shen")
 (load "src/pattern.shen")
 
+\\ Custom optional type (avoid clash with Shen's list-existential some? / some)
+(define match-some X -> [just X])
+(define match-none -> [none])
+(define match-some?
+  X -> (if (cons? X) (= (hd X) (protect just)) false))
+
+(define match-unwrap
+  [just X] -> X)
+
 (define match
-  [blank] _ -> (some [])
-  [blank H] [[sym H] | _] -> (some [])   ; note: head of compound is the sym list [sym H] , outer list pattern simplified
-  [blank H] _ -> none
+  [blank] _ -> (match-some [])
+  [blank H] [[sym H] | _] -> (match-some [])
+  [blank H] _ -> match-none
   [named Name P] E -> (let R (match P E)
-                           (if (some? R)
-                               (some (cons [Name E] (unwrap R)))
-                               none))
-  E E -> (some []) where (not (compound? E))
+                           (if (match-some? R)
+                               (match-some (cons [Name E] (match-unwrap R)))
+                               match-none))
+  E E -> (match-some []) where (not (expr-compound? E))
   [PH | PArgs] [EH | EArgs] -> (match-compound PH PArgs EH EArgs)
   [condition P Test] E -> (let R (match P E)
-                              (if (and (some? R)
-                                       (eval-to-true? (substitute (unwrap R) Test)))
+                              (if (and (match-some? R)
+                                       (eval-to-true? (substitute (match-unwrap R) Test)))
                                   R
-                                  none))
-  _ _ -> none)
+                                  match-none))
+  _ _ -> match-none)
 
 (define match-compound
   PH PArgs EH EArgs ->
     (let HeadMatch (match PH EH)
-         (if (some? HeadMatch)
+         (if (match-some? HeadMatch)
              (let ArgMatch (match-arg-list PArgs EArgs)
-                  (if (some? ArgMatch)
-                      (some (append (unwrap HeadMatch) (unwrap ArgMatch)))
-                      none))
-             none)))
+                  (if (match-some? ArgMatch)
+                      (match-some (append (match-unwrap HeadMatch) (match-unwrap ArgMatch)))
+                      match-none))
+             match-none)))
 
 (define match-arg-list
-  [] [] -> (some [])
+  [] [] -> (match-some [])
   [P | PRest] [E | ERest] ->
     (let M (match P E)
-         (if (some? M)
+         (if (match-some? M)
              (let M2 (match-arg-list PRest ERest)
-                  (if (some? M2)
-                      (some (append (unwrap M) (unwrap M2)))
-                      none))
-             none))
-  _ _ -> none)
+                  (if (match-some? M2)
+                      (match-some (append (match-unwrap M) (match-unwrap M2)))
+                      match-none))
+             match-none))
+  _ _ -> match-none)
 
-\\ NOTE: match-seq.shen (loaded after) overrides match-arg-list.
-\\ match-ac.shen (loaded after seq) further extends match-compound for Orderless/Flat + warning.
-\\ The above is the Phase-1 first-order fallback.
+(define expr-atom?
+  [sym S] -> true where (symbol? S)
+  [int N] -> true where (number? N)
+  X -> false)
 
-(define compound? 
-  [_ | _] -> true
+(define expr-compound?
+  [H | Args] -> (and (not (expr-atom? [H | Args])) (cons? Args))
   _ -> false)
 
 (define substitute
@@ -63,11 +73,8 @@
   Name Val [H | Args] -> [(replace-free Name Val H) | (map (/. X (replace-free Name Val X)) Args)]
   Name Val X -> X)
 
-(define some? (some _) -> true ; _ -> false)
-(define unwrap (some X) -> X)
-
 (define eval-to-true?
   [sym True] -> true
-  _ -> false)   \\ very crude for skeleton
+  _ -> false)
 
 (output "match.shen loaded (first-order match + substitute).~%")

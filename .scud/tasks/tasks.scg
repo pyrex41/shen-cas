@@ -3,7 +3,7 @@
 
 @meta {
   name init
-  updated 2026-06-18T21:28:47Z
+  updated 2026-06-18T21:51:00Z
 }
 
 @nodes
@@ -13,36 +13,36 @@
 3 | Populate initial golden corpus and rejection fixtures | D | 3 | H
 4 | Document 4th-edition Shen syntax, hashing, and Phase 1 symbol policy | D | 2 | H
 5 | Implement content-addressed store module | D | 5 | H
-5.1 | Define content hash type, intern table, and stable Merkle hashing primitives | P | 0 | H
-5.2 | Implement canonical constructors and O(1) hash-equality API | P | 0 | H
-5.3 | Add structural-signature registry stub for hash canonicalization | P | 0 | H
+5.1 | Define content hash type, intern table, and stable Merkle hashing primitives | D | 0 | H
+5.2 | Implement canonical constructors and O(1) hash-equality API | D | 0 | H
+5.3 | Add structural-signature registry stub for hash canonicalization | D | 0 | H
 6 | Define expr datatype and canonical constructors | D | 3 | H
-7 | Implement first-order pattern language | X | 5 | H
-7.1 | Define pattern vs seq-pattern datatypes, reserved constructors, and compound typing rules | P | 0 | H
+7 | Implement first-order pattern language | D | 5 | H
+7.1 | Define pattern vs seq-pattern datatypes, reserved constructors, and compound typing rules | D | 0 | H
 7.2 | Add extract-bindings stubs and pattern utilities | D | 0 | H
-8 | Build checked rules, first-order matcher, and naive reduce | X | 8 | H
-8.1 | Implement checked-rule datatype and binding analysis in rule.shen | P | 0 | H
-8.2 | Implement first-order matcher, substitution, and naive reduce in match.shen + core.shen | P | 0 | H
-9 | Add attributes, sequence matching, and AC support | X | 8 | H
-9.1 | Implement attrs.shen with structural vs control attributes, consistency checks, and explicit declaration syntax | P | 0 | H
-9.2 | Extend store canonicalization and implement match-seq.shen plus match-ac.shen | P | 0 | H
-10 | Introduce immutable db, basis, and normal-form memoization | X | 8 | H
-10.1 | Implement db.shen: datoms, immutable basis values, basis hash, pure assertions, symbol-entry-view, and fork | P | 0 | H
-10.2 | Replace naive rule list, add basis-keyed normal-form memoization, and update core to basis-aware evaluation | P | 0 | H
-11 | Add dispatch index and static analysis layer | X | 8 | H
-11.1 | Implement native basis-keyed dispatch index | P | 0 | H
+8 | Build checked rules, first-order matcher, and naive reduce | D | 8 | H
+8.1 | Implement checked-rule datatype and binding analysis in rule.shen | D | 0 | H
+8.2 | Implement first-order matcher, substitution, and naive reduce in match.shen + core.shen | D | 0 | H
+9 | Add attributes, sequence matching, and AC support | D | 8 | H
+9.1 | Implement attrs.shen with structural vs control attributes, consistency checks, and explicit declaration syntax | D | 0 | H
+9.2 | Extend store canonicalization and implement match-seq.shen plus match-ac.shen | D | 0 | H
+10 | Introduce immutable db, basis, and normal-form memoization | D | 8 | H
+10.1 | Implement db.shen: datoms, immutable basis values, basis hash, pure assertions, symbol-entry-view, and fork | D | 0 | H
+10.2 | Replace naive rule list, add basis-keyed normal-form memoization, and update core to basis-aware evaluation | D | 0 | H
+11 | Add dispatch index and static analysis layer | D | 8 | H
+11.1 | Implement native basis-keyed dispatch index | D | 0 | H
 11.2 | Implement cold analysis relations and warnings | D | 0 | H
-11.3 | Implement least-fixpoint loop detection | P | 0 | H
-12 | Add checked scoping forms | X | 5 | H
-12.1 | Implement Module and With with hygienic alpha handling | P | 0 | H
-12.2 | Implement Block as an isolated db fork with binding checks | P | 0 | H
-13 | Bootstrap checked CAS rule library | X | 5 | H
-13.1 | Define core CAS symbols and arithmetic simplification rules | P | 0 | H
-13.2 | Add control-flow and algebra bootstrap corpus | P | 0 | H
+11.3 | Implement least-fixpoint loop detection | D | 0 | H
+12 | Add checked scoping forms | D | 5 | H
+12.1 | Implement Module and With with hygienic alpha handling | D | 0 | H
+12.2 | Implement Block as an isolated db fork with binding checks | D | 0 | H
+13 | Bootstrap checked CAS rule library | D | 5 | H
+13.1 | Define core CAS symbols and arithmetic simplification rules | D | 0 | H
+13.2 | Add control-flow and algebra bootstrap corpus | D | 0 | H
 14 | Implement typed reader and printer | X | 5 | H
-14.1 | Parse supported algebra and rule syntax into checked internal forms | P | 0 | H
+14.1 | Parse supported algebra and rule syntax into checked internal forms | D | 0 | H
 14.2 | Print supported internal forms and add round-trip tests | P | 0 | M
-15 | Add backend equivalence harness and defer perf backends | P | 3 | M
+15 | Add backend equivalence harness and defer perf backends | D | 3 | M
 
 @edges
 # dependent -> dependency

@@ -30,7 +30,7 @@
 (define run-golden
   -> (let Ign (demo-register-arith)
             Cases (golden-cases)
-            Results (map run-golden-case Cases)
+            Results (map (/. C (run-golden-case C)) Cases)
             Passed (filter (/. X X) Results)
             (do (output "Golden: ~A/~A passed~%" (length Passed) (length Cases))
                 (= (length Passed) (length Cases)))))
@@ -179,11 +179,11 @@
             (do (if Ok (output "~%ALL PASS~%") (output "~%SOME FAIL~%")) Ok)))
 
 (define test-backend-seam
-  -> (let _ (output "=== backend seam (SCUD 15) ===~%")
-       (output "current-core: ~A~%" (current-core))
-       (let R (reduce [[sym (protect Plus)] [int 1] [int 2]])
-         (output "ref reduce via seam: ~A~%" R)
-         (output "seam present; equivalence harness (golden etc over current-core) ready for compiled stub (basis-keyed, defer perf)~%")
-         true)))
+  -> (do (output "=== backend seam (SCUD 15) ===~%")
+         (output "current-core: ~A~%" (current-core))
+         (let R (reduce [[sym (protect Plus)] [int 1] [int 2]])
+           (do (output "ref reduce via seam: ~A~%" R)
+               (output "seam present; equivalence harness (golden etc over current-core) ready for compiled stub (basis-keyed, defer perf)~%")
+               true))))
 
 (run-all-tests)

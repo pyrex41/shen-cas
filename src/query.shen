@@ -130,7 +130,7 @@
 (define rule-dependency-loops
   Db -> (let Edges (direct-deps Db)
              Reach (lfp Edges (/. R (reach-step Edges R)))
-             (heads-in-cycles (my-filter (fn self-edge?) Reach))))
+             (heads-in-cycles (my-filter (/. E (self-edge? E)) Reach))))
 
 \\ --- pure testable entrypoint for SCUD 11.3 verification (no db needed) ---
 \\ Accepts a list of edges e.g. [[f g] [g f]] or [[f f]] or [[f g] [g h]]
@@ -138,7 +138,7 @@
 (define rule-dependency-loops-from-edges
   Edges -> (let Norm (dedup Edges)
               Reach (lfp Norm (/. R (reach-step Norm R)))
-              (heads-in-cycles (my-filter (fn self-edge?) Reach))))
+              (heads-in-cycles (my-filter (/. E (self-edge? E)) Reach))))
 
 \\ --- simple reachability via lfp for tests (transitive closure) ---
 (define reachable-from-edges
@@ -204,7 +204,7 @@
   D -> (and (cons? D) (= (length D) 3)))
 
 (define all-heads
-  Db -> (dedup (my-map (/. D (hd D)) (my-filter rule-datom? (db-datoms Db)))))
+  Db -> (dedup (my-map (/. D (hd D)) (my-filter (/. D (rule-datom? D)) (db-datoms Db)))))
 
 (define set-difference
   A B -> (my-filter (/. X (not (set-member? X B))) A))
@@ -249,7 +249,7 @@
 
 (define attr-conflicts
   Db -> (let Heads (all-heads Db)
-             AttrHeads (my-map (/. D (hd D)) (my-filter attr-datom? (db-datoms Db)))
+             AttrHeads (my-map (/. D (hd D)) (my-filter (/. D (attr-datom? D)) (db-datoms Db)))
              Syms (dedup (append Heads AttrHeads))
              (my-filter (/. S (not (consistent-attrs? (symbol-attrs Db S))))
                        Syms)))
@@ -274,7 +274,7 @@
 
 (define oneid-no-unary
   Db -> (let Heads (all-heads Db)
-             AttrHeads (my-map (/. D (hd D)) (my-filter attr-datom? (db-datoms Db)))
+             AttrHeads (my-map (/. D (hd D)) (my-filter (/. D (attr-datom? D)) (db-datoms Db)))
              Syms (dedup (append Heads AttrHeads))
              (my-filter (/. S (and (has-one-identity? Db S)
                                    (not (has-unary-rule? Db S))))

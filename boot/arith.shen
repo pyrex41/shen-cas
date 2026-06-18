@@ -1,33 +1,37 @@
 \\ boot/arith.shen
 \\ SCUD 13.1 skeleton: core CAS symbols + arithmetic simplification rules
 
-(declare-structural (protect Plus) [(protect flat) (protect orderless)])
-(declare-structural (protect Times) [(protect flat) (protect orderless)])
-(declare-structural (protect Minus) [(protect flat)])
-(declare-structural (protect Power) [])
+(define boot-declare-structural
+  Sym Attrs -> (if (sig-present? Sym)
+                    true
+                    (declare-structural Sym Attrs)))
+
+(boot-declare-structural (protect Plus) [(protect flat) (protect orderless)])
+(boot-declare-structural (protect Times) [(protect flat) (protect orderless)])
+(boot-declare-structural (protect Power) [])
 
 (register-rule
-  (rule [[sym (protect Plus)] [named (protect x) [blank]] [int 0]]
+  (rule [[sym (protect Plus)] (named (protect x) (blank)) [int 0]]
         [sym (protect x)]))
 
 (register-rule
-  (rule [[sym (protect Plus)] [int 0] [named (protect x) [blank]]]
+  (rule [[sym (protect Plus)] [int 0] (named (protect x) (blank))]
         [sym (protect x)]))
 
 (register-rule
-  (rule [[sym (protect Times)] [named (protect x) [blank]] [int 1]]
+  (rule [[sym (protect Times)] (named (protect x) (blank)) [int 1]]
         [sym (protect x)]))
 
 (register-rule
-  (rule [[sym (protect Times)] [named (protect x) [blank]] [int 0]]
+  (rule [[sym (protect Times)] (named (protect x) (blank)) [int 0]]
         [int 0]))
 
 (register-rule
-  (rule [[sym (protect Minus)] [named (protect x) [blank]] [int 0]]
+  (rule [[sym (protect Minus)] (named (protect x) (blank)) [int 0]]
         [sym (protect x)]))
 
 (register-rule
-  (rule [[sym (protect Times)] [int 1] [named (protect x) [blank]]]
+  (rule [[sym (protect Times)] [int 1] (named (protect x) (blank))]
         [sym (protect x)]))
 
 (register-rule
@@ -66,16 +70,14 @@
   (rule [[sym (protect Times)] [int -245] [int 67]]
         [int -16415]))
 
-(output "boot/arith.shen (core CAS symbols + checked rules skeleton) loaded.~%")
-\\ control flow skeleton for 13.2
-(declare-structural (protect If) [])
+(boot-declare-structural (protect If) [])
 
 (register-rule
-  (rule [[sym (protect If)] [sym (protect True)] [named (protect then) [blank]] [named (protect else) [blank]]]
+  (rule [[sym (protect If)] [sym (protect True)] (named (protect then) (blank)) (named (protect else) (blank))]
         [sym (protect then)]))
 
 (register-rule
-  (rule [[sym (protect If)] [sym (protect False)] [named (protect then) [blank]] [named (protect else) [blank]]]
+  (rule [[sym (protect If)] [sym (protect False)] (named (protect then) (blank)) (named (protect else) (blank))]
         [sym (protect else)]))
 
-(output "boot/arith 13.2 control flow added~%")
+(output "boot/arith.shen loaded.~%")

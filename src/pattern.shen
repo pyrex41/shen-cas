@@ -165,10 +165,10 @@
   P -> (if (named? P)
            (cons (named-name P) (extract-bindings (named-subpattern P)))
            (if (seq-pattern? P)
-               []   ; unnamed seq forms contribute no bindings; named-seq name collected at outer named
+               []
                (if (compound-pattern? P)
                    (append (extract-bindings (compound-pattern-head P))
-                           (mapcan extract-bindings (compound-pattern-args P)))
+                           (mapcan (/. X (extract-bindings X)) (compound-pattern-args P)))
                    (if (alt? P)
                        (append (extract-bindings (alt-left P)) (extract-bindings (alt-right P)))
                        (if (condition? P)
