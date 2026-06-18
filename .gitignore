@@ -1,0 +1,21 @@
+# Shen / KLambda artifacts
+*.kl
+*.shen.fasl
+*.fasl
+*~
+
+# Build / test
+test-output/
+golden-failures/
+*.log
+
+# OS / editor
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
+
+# Temp
+/tmp/
+*.tmp

@@ -1,0 +1,222 @@
+# SCUD Graph v1
+# Phase: init
+
+@meta {
+  name init
+  updated 2026-06-18T19:53:43Z
+}
+
+@nodes
+# id | title | status | complexity | priority
+1 | Initialize repository directory structure | D | 1 | H
+2 | Implement Phase 0 test harness skeleton | P | 3 | H
+3 | Populate initial golden corpus and rejection fixtures | P | 3 | H
+4 | Document 4th-edition Shen syntax, hashing, and Phase 1 symbol policy | P | 2 | H
+5 | Implement content-addressed store module | X | 5 | H
+5.1 | Define content hash type, intern table, and stable Merkle hashing primitives | P | 0 | H
+5.2 | Implement canonical constructors and O(1) hash-equality API | P | 0 | H
+5.3 | Add structural-signature registry stub for hash canonicalization | P | 0 | H
+6 | Define expr datatype and canonical constructors | P | 3 | H
+7 | Implement first-order pattern language | X | 5 | H
+7.1 | Define pattern vs seq-pattern datatypes, reserved constructors, and compound typing rules | P | 0 | H
+7.2 | Add extract-bindings stubs and pattern utilities | P | 0 | H
+8 | Build checked rules, first-order matcher, and naive reduce | X | 8 | H
+8.1 | Implement checked-rule datatype and binding analysis in rule.shen | P | 0 | H
+8.2 | Implement first-order matcher, substitution, and naive reduce in match.shen + core.shen | P | 0 | H
+9 | Add attributes, sequence matching, and AC support | X | 8 | H
+9.1 | Implement attrs.shen with structural vs control attributes, consistency checks, and explicit declaration syntax | P | 0 | H
+9.2 | Extend store canonicalization and implement match-seq.shen plus match-ac.shen | P | 0 | H
+10 | Introduce immutable db, basis, and normal-form memoization | X | 8 | H
+10.1 | Implement db.shen: datoms, immutable basis values, basis hash, pure assertions, symbol-entry-view, and fork | P | 0 | H
+10.2 | Replace naive rule list, add basis-keyed normal-form memoization, and update core to basis-aware evaluation | P | 0 | H
+11 | Add dispatch index and static analysis layer | X | 8 | H
+11.1 | Implement native basis-keyed dispatch index | P | 0 | H
+11.2 | Implement cold analysis relations and warnings | P | 0 | H
+11.3 | Implement least-fixpoint loop detection | P | 0 | H
+12 | Add checked scoping forms | X | 5 | H
+12.1 | Implement Module and With with hygienic alpha handling | P | 0 | H
+12.2 | Implement Block as an isolated db fork with binding checks | P | 0 | H
+13 | Bootstrap checked CAS rule library | X | 5 | H
+13.1 | Define core CAS symbols and arithmetic simplification rules | P | 0 | H
+13.2 | Add control-flow and algebra bootstrap corpus | P | 0 | H
+14 | Implement typed reader and printer | X | 5 | H
+14.1 | Parse supported algebra and rule syntax into checked internal forms | P | 0 | H
+14.2 | Print supported internal forms and add round-trip tests | P | 0 | M
+15 | Add backend equivalence harness and defer perf backends | P | 3 | M
+
+@edges
+# dependent -> dependency
+3 -> 2
+4 -> 1
+4 -> 2
+5 -> 1
+5.2 -> 5.1
+5.2 -> 5.3
+5.3 -> 5.1
+6 -> 4
+6 -> 5
+7 -> 4
+7 -> 5
+7 -> 6
+7.2 -> 7.1
+8 -> 3
+8 -> 4
+8 -> 6
+8 -> 7
+8.2 -> 8.1
+9 -> 4
+9 -> 5
+9 -> 7
+9 -> 8
+9.1 -> 5.3
+9.2 -> 9.1
+10 -> 3
+10 -> 8
+10 -> 9
+10.2 -> 10.1
+11 -> 10
+11.1 -> 10
+11.2 -> 10
+11.3 -> 11.2
+12 -> 9
+12 -> 10
+12.1 -> 5.3
+12.1 -> 10
+12.2 -> 10.1
+12.2 -> 12.1
+13 -> 9
+13 -> 10
+13 -> 12
+13.1 -> 9
+13.1 -> 10
+13.2 -> 12
+13.2 -> 13.1
+14 -> 4
+14 -> 13
+14.1 -> 13
+14.2 -> 14.1
+15 -> 10
+15 -> 11
+15 -> 14
+
+@parents
+# parent: child1, child2
+5: 5.1, 5.2, 5.3
+7: 7.1, 7.2
+8: 8.1, 8.2
+9: 9.1, 9.2
+10: 10.1, 10.2
+11: 11.1, 11.2, 11.3
+12: 12.1, 12.2
+13: 13.1, 13.2
+14: 14.1, 14.2
+
+@agents
+# id | agent_type | model_tier
+1 | fast-builder | fast
+2 | builder | standard
+3 | builder | standard
+4 | planner | fast
+5 | builder | standard
+5.1 | builder | standard
+5.2 | builder | standard
+5.3 | builder | standard
+6 | builder | standard
+7 | builder | standard
+7.1 | builder | standard
+7.2 | builder | standard
+8 | builder | smart
+8.1 | builder | smart
+8.2 | builder | smart
+9 | builder | smart
+9.1 | builder | smart
+9.2 | builder | smart
+10 | builder | smart
+10.1 | builder | smart
+10.2 | builder | smart
+11 | builder | smart
+11.1 | builder | smart
+11.2 | builder | smart
+11.3 | builder | smart
+12 | builder | smart
+12.1 | builder | smart
+12.2 | builder | smart
+13 | builder | standard
+13.1 | builder | standard
+13.2 | builder | standard
+14 | builder | smart
+14.1 | builder | smart
+14.2 | builder | standard
+15 | planner | standard
+
+@details
+1 | description |
+  Create the standard layout: src/, test/, golden/, notes/, and boot/ directories. Add initial Shen load file or package declaration, .gitignore for compiled artifacts, and a minimal README stub pointing to plan.md.
+2 | description |
+  Write the core test runner (test.shen) supporting module loading, golden file execution with 'input -> expected normal form' format, and static rejection expectations for load/registration/type errors. Include a trivial passing golden case and harness reporting (pass/fail counts).
+3 | description |
+  Extract 8-12 golden reduction cases from Book of Shen 21.4 (arith simplification, walk/thrash/simplify equivalents, constant folding like 12*(5-3)->24) into golden/ files. Add rejection test declarations for malformed patterns, unbound RHS vars, and bad attributes even before kernel implementation.
+4 | description |
+  Create notes/syntax-verification.md recording exact usage of datatype, verified side-conditions, defprolog, prolog?, and typed defcc/==> from The Book of Shen 4th ed. Confirm numeric policy (exact integers only for Phase 1), choose the portable content-hash representation/algorithm, document the immutable structural-signature rule, and define the Phase 1 known-symbol policy for bindings-cover? (e.g. LHS-bound variables plus recognized constants/builtins only until db.shen exists). Record any corrections needed for harness or kernel code.
+5 | description |
+  Create store.shen providing content hash type, intern table, structural-signature lookup stub, canonical constructors, and O(1) hash-based equality. Support only stable expression hashing and interning; omit basis, memoization, and rule-driven canonicalization for now.
+5.1 | description |
+  Create the core of store.shen: define the content-hash type using the algorithm chosen in notes/syntax-verification.md, implement the intern table (hash -> interned node), and provide pure stable Merkle hash functions. Support atom hashing (tag + value) and compound hashing (head-hash + ordered list of arg-hashes). Restrict to stable structural hashing only; omit any rule-driven, basis, alpha, or memoization logic.
+5.2 | description |
+  Add the public canonical constructors (wrappers for symbols, integers, and compounds) that route through the intern table to ensure sharing and stable content hashes. Constructors must consult the structural-signature registry before hashing so later Orderless/Flat support does not change the hash contract. Implement O(1) structural equality by hash comparison. Define the module's exported interface and any internal helpers needed for interning. Verify that identical structures share identity and that hashing remains independent of later rule sets.
+5.3 | description |
+  Add a minimal structural-signature registry API in store.shen (or a tiny dependency-free helper) that records immutable per-symbol facts used by hashing: initially none, later Flat/Orderless/OneIdentity. The API must make structural signatures available before any compound headed by that symbol is constructed, and it must reject or explicitly flag attempts to change a structural signature after construction. Phase 2 attrs.shen will provide the user-facing declaration syntax on top of this stub.
+6 | description |
+  Implement expr.shen with tagged atoms (sym, int), compound expression trees, and a pretty-printer stub. Route every constructor through the store module so that structurally identical expressions share the same hash identity from day one.
+7 | description |
+  Build pattern.shen defining pattern vs seq-pattern distinction, literal patterns, blank (_), typed blank, named patterns, and reserved pattern constructors that prevent literal exprs from masquerading as patterns. Add binding extraction stubs and explicit rejection of seq patterns outside argument position.
+7.1 | description |
+  Create pattern.shen. Implement the sequent datatypes from the sketch: pattern (literal exprs, (blank), (blank H) typed blank, (named Name P)), seq-pattern ((blank-seq), (blank-null-seq)), pat-or-seq union, and compound-pattern. Introduce reserved constructors (distinct from expr forms) so literal expressions cannot masquerade as patterns. Implement compound-pattern rules that restrict seq-patterns to argument position only, providing the explicit static rejection of seq patterns outside args. Integrate constructors with the content-addressed store.
+7.2 | description |
+  Extend pattern.shen with extract-bindings (collecting names from (named ...) and recursing through compounds while ignoring literals/blanks/seq forms at top level), plus supporting functions (e.g., pattern recognizers, binding list helpers). Ensure stubs are sufficient for later bindings-cover use in rule.shen. Demonstrate via usage that valid first-order patterns type-check and seq-pattern misuse is rejected.
+8 | description |
+  Implement rule.shen (checked-rule datatype, extract-bindings, free-symbols, bindings-cover?) and match.shen (literal/blank/named/compound match plus substitution). Add a naive ordered-rule reduce loop in core.shen. Deliver Phase 1 acceptance: reject malformed patterns and unbound RHS, pass first-order golden cases, idempotent reduce, content equality by hash.
+8.1 | description |
+  Define the checked-rule datatype (following sketch rewrite-rule) with bindings-cover? as a sequent side condition when supported by Shen; otherwise enforce it as a registration-time gate. Implement extract-bindings, free-symbols, and bindings-cover? using the Phase 1 known-symbol policy documented in notes/syntax-verification.md rather than a full db lookup. Ensure definition-time/registration-time rejection of malformed patterns and unbound RHS variables. Provide registration helpers for ordered rule lists. This is the foundational model/schema layer.
+8.2 | description |
+  Implement match.shen for literal match, blank/typed-blank, named patterns, and first-order compound matching plus substitute. In core.shen, add the naive ordered-rule reduce loop (head eval, try-rules, fixed-point iteration) over in-memory rule lists with no attributes/sequences yet. Ensure idempotence, first-order golden case passage, and that content-hashed expressions enable O(1) equality. Wire into the Evaluation Core seam.
+9 | description |
+  Implement attrs.shen with structural (Flat, Orderless, OneIdentity) vs control attributes plus consistency checks and explicit declaration syntax. Extend store canonicalization for Orderless sort and Flat flatten. Create match-seq.shen (Prolog BlankSequence/BlankNullSequence) and match-ac.shen (permutation + flattening matchers + AC blowup warning).
+9.1 | description |
+  Create attrs.shen defining attribute datatypes that distinguish immutable structural attributes (Flat, Orderless, OneIdentity) from evaluation-control attributes (HoldAll, HoldFirst, HoldRest, Listable). Implement local consistency checks rejecting invalid combinations (e.g., hold-all + hold-first, listable + hold-all without opt-in). Provide an explicit symbol declaration form that registers structural attributes through the Phase 1 structural-signature registry before affected terms are constructed. Do not reject OneIdentity-without-unary-rule here; that requires rule-db analysis and belongs in Phase 4 as a warning/relation.
+9.2 | description |
+  Extend store.shen canonical constructors to apply Orderless argument sorting and Flat flattening (recursively) for symbols that carry the corresponding structural attributes before content hashing. Implement match-seq.shen using Shen Prolog to support BlankSequence, BlankNullSequence, and named sequence variables in argument position, including exhaustive split enumeration. Implement match-ac.shen with Orderless permutation search, Flat flattening/splitting before matching, and an AC blowup warning threshold for Flat+Orderless symbols containing multiple sequence patterns.
+10 | description |
+  Implement db.shen: datoms for rules/attributes, immutable basis values, basis hash, pure assert-rule/assert-attribute, symbol-entry-view, and db fork primitive. Replace naive rule list with db assertions. Add normal-form keyed by (term-content-hash, basis-hash) with the guarantee that it agrees with reduce. Update core to use basis-aware evaluation.
+10.1 | description |
+  Create db.shen with datom representations for rules (symbol/kind/rule-hash/tx) and attributes. Define immutable db value as a basis identified by basis-hash (Merkle root over asserted datoms). Implement pure assert-rule and assert-attribute (db -> db') that accumulate facts without mutation. Provide symbol-entry-view as a computed view over a db for a symbol's rules+attributes. Add db fork primitive for isolated child bases. Include core db construction, query helpers, and basis-hash computation. Do not yet integrate with core reduce.
+10.2 | description |
+  In core.shen (and related registration paths), replace the Phase-1 naive ordered rule list with db assertions via assert-rule/assert-attribute. Implement normal-form keyed by (term-content-hash, basis-hash) with value stored in the content store; enforce the invariant that (normal-form Db E) always equals (reduce Db E). Make reduce, try-rules, eval helpers, etc. fully basis-aware: accept/thread db values, read rules/attributes via symbol-entry-view, support evaluation as-of older bases. Wire memoization into the evaluation loop. Verify: parent db unchanged on assert, older bases ignore later rules, new bases never hit stale memos, full agreement on corpus, and fork isolation.
+11 | description |
+  Implement ADR-001: the hot path is a native dispatch index, not Prolog or a full Datalog engine; cold non-recursive analyses are plain Shen relations; the only recursive analysis is a finite-set least-fixpoint loop detector. This phase turns the db into a queryable and warnable substrate without changing reference evaluator semantics.
+11.1 | description |
+  Implement query.shen dispatch-candidates and shape-key. Cache candidate lookups by (basis-hash, head-symbol, shape-key). The index may over-approximate but must never under-approximate: every rule that would match by the reference matcher must be present in the candidate list. Add randomized or enumerated soundness checks against the matcher and cache-coherence checks across basis changes.
+11.2 | description |
+  Implement plain Shen analysis relations over db values: covers?, unbound-vars, attr-conflicts, and oneid-no-unary. Surface these through warn.shen at rule/attribute registration. oneid-no-unary should be a warning or analysis result based on db contents, not a Phase 2 attribute type rejection.
+11.3 | description |
+  Implement finite-set helpers and lfp for cycle-safe least-fixpoint computation. Build direct-deps from rule RHS symbols, compute transitive closure, and report dependency loops such as f->f and f->g->f. Verify lfp terminates on cyclic graphs and agrees with a brute-force transitive-closure reference on small graphs.
+12 | description |
+  Add checked scoping forms. Module and With use hygienic renaming/alpha handling; Block evaluates against a forked db and discards it, so dynamic changes cannot leak into the parent basis.
+12.1 | description |
+  Implement Module and With with gensym/alpha-renaming behavior and add alpha-canonicalization support to content hashing for binder forms. Extend free-symbol and binding analysis so local binders are handled correctly for the supported subset. Verify alpha-equivalent Module bodies share hashes.
+12.2 | description |
+  Implement Block with block-binding/block-form checks requiring symbol binding positions. Evaluate Block bodies against a child db fork and discard the fork afterward. Verify invalid bindings are rejected and temporary values/rules do not leak to the parent basis.
+13 | description |
+  Bootstrap a small checked CAS rule library using the reference evaluator and immutable db. Keep semantic validity explicit: these algebra rules are trusted bootstrap rules, not mechanically proven identities.
+13.1 | description |
+  Declare core symbols such as Plus, Times, Power, List, If, and CompoundExpression. Register structural attributes for Plus and Times. Add exact-integer arithmetic and simplification rules including x+0->x, x*1->x, x*0->0, constant folding, and the Book 21.4 arithmetic simplification examples.
+13.2 | description |
+  Add control-flow rules with hold behavior, especially If[True, then, else] and If[False, then, else]. Expand the golden corpus with small Book-inspired algebra cases and verify bootstrap rules are checked, reductions are idempotent, and Orderless lets 0+x reduce through the single x+0 rule.
+14 | description |
+  Implement a typed reader and printer for the supported user-facing subset. The reader is part of correctness: it must either produce checked internal forms or fail, never emit unchecked fallback trees.
+14.1 | description |
+  Choose typed Shen YACC or recursive descent for the first reader. Parse integers, symbols, f[x,y], infix +/*/^, parentheses, implicit multiplication (2a -> Times[2,a]), blanks x_/x__/x___, and rules f[x_] := rhs. Immediately route parsed expressions/rules through the checked constructors and rule registration gates.
+14.2 | description |
+  Implement a readable printer for the supported internal expression subset and add round-trip tests. Verify f[x_, y_] := x + y parses into a checked rule, 2a parses as multiplication, malformed syntax reports parse errors, and reader/printer round-trips supported algebra expressions.
+15 | description |
+  Add a backend-equivalence harness but defer performance backends until the MVP is green. Parameterize the full golden/rejection/property/memo/basis suite over current-core. Future compiled dispatch or HVM experiments must be basis-keyed and must pass the entire suite without accepting expressions the reference evaluator rejects.

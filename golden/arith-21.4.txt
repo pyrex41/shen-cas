@@ -1,0 +1,7 @@
+# Initial golden corpus (Phase 0 skeleton, from Book 21.4 inspiration)
+# Format (evolving): one case per relevant line or block
+# "input-expr" -> "expected-nf"
+# For now, simple literal that a trivial evaluator can "pass".
+
+12 -> 12
+(symbol Plus) -> (symbol Plus)

@@ -1,0 +1,82 @@
+[
+  {
+    "title": "Initialize repository directory structure",
+    "description": "Create the standard layout: src/, test/, golden/, notes/, and boot/ directories. Add initial Shen load file or package declaration, .gitignore for compiled artifacts, and a minimal README stub pointing to plan.md.",
+    "priority": "high",
+    "complexity": 1,
+    "dependencies": [],
+    "agent_type": "fast-builder"
+  },
+  {
+    "title": "Implement Phase 0 test harness skeleton",
+    "description": "Write the core test runner (test.shen) supporting module loading, golden file execution with 'input -> expected normal form' format, and static rejection expectations for load/registration/type errors. Include a trivial passing golden case and harness reporting (pass/fail counts).",
+    "priority": "high",
+    "complexity": 3,
+    "dependencies": ["1"],
+    "agent_type": "builder"
+  },
+  {
+    "title": "Populate initial golden corpus and rejection fixtures",
+    "description": "Extract 8-12 golden reduction cases from Book of Shen 21.4 (arith simplification, walk/thrash/simplify equivalents, constant folding like 12*(5-3)->24) into golden/ files. Add rejection test declarations for malformed patterns, unbound RHS vars, and bad attributes even before kernel implementation.",
+    "priority": "high",
+    "complexity": 3,
+    "dependencies": ["1", "2"],
+    "agent_type": "builder"
+  },
+  {
+    "title": "Document 4th-edition Shen syntax verification",
+    "description": "Create notes/syntax-verification.md recording exact usage of datatype, verified side-conditions, defprolog, prolog?, and typed defcc/==> from The Book of Shen 4th ed. Confirm numeric policy (exact integers only for Phase 1) and any corrections needed for harness or kernel code.",
+    "priority": "high",
+    "complexity": 2,
+    "dependencies": ["1"],
+    "agent_type": "planner"
+  },
+  {
+    "title": "Implement content-addressed store module",
+    "description": "Create store.shen providing content hash type, intern table, canonical constructors, and O(1) hash-based equality. Support only stable expression hashing and interning; omit basis, memoization, and rule-driven canonicalization for now.",
+    "priority": "high",
+    "complexity": 5,
+    "dependencies": ["1"],
+    "agent_type": "builder"
+  },
+  {
+    "title": "Define expr datatype and canonical constructors",
+    "description": "Implement expr.shen with tagged atoms (sym, int), compound expression trees, and a pretty-printer stub. Route every constructor through the store module so that structurally identical expressions share the same hash identity from day one.",
+    "priority": "high",
+    "complexity": 3,
+    "dependencies": ["5"],
+    "agent_type": "builder"
+  },
+  {
+    "title": "Implement first-order pattern language",
+    "description": "Build pattern.shen defining pattern vs seq-pattern distinction, literal patterns, blank (_), typed blank, named patterns, and reserved pattern constructors that prevent literal exprs from masquerading as patterns. Add binding extraction stubs and explicit rejection of seq patterns outside argument position.",
+    "priority": "high",
+    "complexity": 5,
+    "dependencies": ["5", "6"],
+    "agent_type": "builder"
+  },
+  {
+    "title": "Build checked rules, first-order matcher, and naive reduce",
+    "description": "Implement rule.shen (checked-rule datatype, extract-bindings, free-symbols, bindings-cover?) and match.shen (literal/blank/named/compound match plus substitution). Add a naive ordered-rule reduce loop in core.shen. Deliver Phase 1 acceptance: reject malformed patterns and unbound RHS, pass first-order golden cases, idempotent reduce, content equality by hash.",
+    "priority": "high",
+    "complexity": 8,
+    "dependencies": ["6", "7"],
+    "agent_type": "builder"
+  },
+  {
+    "title": "Add attributes, sequence matching, and AC support",
+    "description": "Implement attrs.shen with structural (Flat, Orderless, OneIdentity) vs control attributes plus consistency checks and explicit declaration syntax. Extend store canonicalization for Orderless sort and Flat flatten. Create match-seq.shen (Prolog BlankSequence/BlankNullSequence) and match-ac.shen (permutation + flattening matchers + AC blowup warning).",
+    "priority": "high",
+    "complexity": 8,
+    "dependencies": ["5", "7", "8"],
+    "agent_type": "builder"
+  },
+  {
+    "title": "Introduce immutable db, basis, and normal-form memoization",
+    "description": "Implement db.shen: datoms for rules/attributes, immutable basis values, basis hash, pure assert-rule/assert-attribute, symbol-entry-view, and db fork primitive. Replace naive rule list with db assertions. Add normal-form keyed by (term-content-hash, basis-hash) with the guarantee that it agrees with reduce. Update core to use basis-aware evaluation.",
+    "priority": "high",
+    "complexity": 8,
+    "dependencies": ["8", "9"],
+    "agent_type": "builder"
+  }
+]
