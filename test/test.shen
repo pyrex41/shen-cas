@@ -366,9 +366,20 @@
           Ok6 (overflow? 99999999999999999999999999)
           \\ distinct rat/int hash (3/2 != 3)
           Ok7 (not (content-eq [rat 3 2] [int 3]))
-          Ok (and Ok1 Ok2 Ok3 Ok4 Ok5 Ok6 Ok7)
-          (do (output "17e: 6/4=3/2:~A 4/2=2:~A Divide=~A mixed+=~A mixed*=~A overflow=~A hashdistinct=~A~%"
-                      Ok1 Ok2 Ok3 Ok4 Ok5 Ok6 Ok7)
+          \\ end-to-end saturating arithmetic must ERROR/return, never hang.
+          \\ (a) a direct saturating num-mul aborts the op (errors) before make-rat;
+          \\ guard-int detects the int64-saturated product and raises rather than
+          \\ feeding ~9.2e18 into gcd's +1-from-zero floor loop.
+          Ok8 (trap-error (do (num-mul [int 5000000000] [int 5000000000]) false)
+                          (/. E true))
+          \\ (b) the real evaluator on a saturating product returns inert (num-builtin
+          \\ traps the overflow and declines) -- it must terminate, not hang.
+          SatE [[sym (protect Times)] [int 3037000500] [int 3037000500]]
+          R8 (reduce SatE)
+          Ok9 (content-eq R8 SatE)
+          Ok (and Ok1 Ok2 Ok3 Ok4 Ok5 Ok6 Ok7 Ok8 Ok9)
+          (do (output "17e: 6/4=3/2:~A 4/2=2:~A Divide=~A mixed+=~A mixed*=~A overflow=~A hashdistinct=~A sat-errors=~A sat-inert=~A~%"
+                      Ok1 Ok2 Ok3 Ok4 Ok5 Ok6 Ok7 Ok8 Ok9)
               Ok)))
 
 (define test-eval-evaluator-wave1

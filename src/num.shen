@@ -21,9 +21,15 @@
            (or (>= N (int64-max)) (<= N (int64-min)))
            false))
 
+\\ guard-int MUST abort the op when it sees a saturated int64 value: a saturated
+\\ magnitude (~9.2e18) fed into make-rat -> gcd -> floor-iter loops by +1 from 0
+\\ for billions of iterations and hangs the evaluator. So we warn and ERROR here,
+\\ BEFORE the value can reach make-rat/gcd. num-builtin traps this error and
+\\ declines (returns [none]) so the expression stays inert rather than corrupt.
 (define guard-int
   N -> (if (overflow? N)
-           (do (output "WARNING: int64 overflow in numeric op: ~A~%" N) N)
+           (do (output "WARNING: int64 overflow in numeric op: ~A~%" N)
+               (error "int64 overflow"))
            N))
 
 \\ --- gcd (Euclid, on non-negative magnitudes) ---
@@ -136,9 +142,11 @@
   [] -> true
   [A | As] -> (if (numeric? A) (all-numeric? As) false))
 
+\\ trap an int64-overflow error from guard-int and DECLINE (the expr stays inert),
+\\ so a saturating computation errors/returns rather than corrupting or hanging.
 (define num-builtin
   H Args -> (if (all-numeric? Args)
-                (num-apply H Args)
+                (trap-error (num-apply H Args) (/. E [none]))
                 [none]))
 
 \\ dispatch on the head symbol's NAME (str) so it works regardless of (protect ...)
