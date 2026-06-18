@@ -192,9 +192,97 @@
                   _ (if (cons? Cands) (dispatch-store! K Cands) true)
                Cands))))
 
-;; placeholders for 11.2
-(define covers? _ -> (/. _ true))
-(define unbound-vars _ -> (/. _ []))
-(define attr-conflicts _ -> (/. _ []))
-(define oneid-no-unary _ -> [])
+\\ --- 11.2 cold analysis relations (plain Shen over db values) ---
+\\ Per SCUD 11.2, ADR-001, plan Phase 4: plain non-recursive relations (no Prolog).
+\\ Use db-datoms + symbol-entry-view + direct-deps style where helpful.
+\\ All use my- set helpers for self-contained purity. Runtime fns from rule/attrs/pattern/store
+\\ (loaded by call time) are used for extract/free/consistent/sig.
+\\ covers? reuses spirit of bindings-cover? (head/arity shape check here for patterns).
+\\ oneid-no-unary is analysis result (set diff) NOT type rejection.
+
+(define attr-datom?
+  D -> (and (cons? D) (= (length D) 3)))
+
+(define all-heads
+  Db -> (dedup (my-map (/. D (hd D)) (my-filter rule-datom? (db-datoms Db)))))
+
+(define set-difference
+  A B -> (my-filter (/. X (not (set-member? X B))) A))
+
+(define head-symbol
+  [[sym S] | _] -> S
+  [sym S] -> S
+  [H | _] -> (head-symbol H)
+  S -> S where (symbol? S)
+  _ -> false)
+
+\\ simplistic covers: head match + arity1 >= arity2 (over-approx shape)
+(define covers-patterns?
+  P1 P2 -> (and (cons? P1) (cons? P2)
+                (equal? (head-symbol P1) (head-symbol P2))
+                (>= (length (tl P1)) (length (tl P2)))))
+
+\\ covers? : Db -> (P1 -> (P2 -> bool))   ; per stubs/ADR flavor
+(define covers?
+  _ -> (/. P1 (/. P2 (covers-patterns? P1 P2))))
+
+(define my-some
+  _ [] -> false
+  P [X | Y] -> (or (P X) (my-some P Y)))
+
+(define unbound-vars
+  Db -> (let Rs (all-rule-reps Db)
+             (my-mapcan (/. R (let B (extract-bindings (rule-lhs R))
+                              F (free-symbols (rule-rhs R))
+                              U (my-filter (/. V (not (or (element? V B)
+                                                         (known-symbol? V))))
+                                           F)
+                           (if (empty? U) [] [[R U]])))
+                    Rs)))
+
+(define all-rule-reps
+  Db -> (my-mapcan (/. D (if (rule-datom? D) [(hd (tl (tl D)))] [])) (db-datoms Db)))
+
+(define symbol-attrs
+  Db S -> (let V (symbol-entry-view Db S)
+               (if (cons? V) (hd (tl (tl (tl (tl V))))) [])))
+
+(define attr-conflicts
+  Db -> (let Heads (all-heads Db)
+             AttrHeads (my-map (/. D (hd D)) (my-filter attr-datom? (db-datoms Db)))
+             Syms (dedup (append Heads AttrHeads))
+             (my-filter (/. S (not (consistent-attrs? (symbol-attrs Db S))))
+                       Syms)))
+
+\\ oneid via structural sig (declared) OR db attr list
+(define has-one-identity?
+  Db S -> (or (structural-sig-contains-name? S "one-identity")
+              (element? (intern "one-identity") (symbol-attrs Db S))))
+
+(define has-unary-rule?
+  Db S -> (let V (symbol-entry-view Db S)
+               Rs (if (cons? V)
+                      (let Own (hd (tl V))
+                           Down (hd (tl (tl V)))
+                           UpL (if (cons? (tl (tl (tl V)))) (hd (tl (tl (tl V)))) [])
+                           (append Own (append Down UpL)))
+                      [])
+               (my-some (/. R (unary-rule-lhs? (rule-lhs R))) Rs)))
+
+(define unary-rule-lhs?
+  L -> (and (cons? L) (= (length (tl L)) 1)))
+
+(define oneid-no-unary
+  Db -> (let Heads (all-heads Db)
+             AttrHeads (my-map (/. D (hd D)) (my-filter attr-datom? (db-datoms Db)))
+             Syms (dedup (append Heads AttrHeads))
+             (my-filter (/. S (and (has-one-identity? Db S)
+                                   (not (has-unary-rule? Db S))))
+                       Syms)))
+
+\\ brute set-difference version for invariant: must match on simple cases
+(define oneid-no-unary-brute
+  Db -> (let oneids (my-filter (/. S (has-one-identity? Db S)) (all-heads Db))
+             unaries (my-filter (/. S (has-unary-rule? Db S)) oneids)
+             (set-difference oneids unaries)))
 

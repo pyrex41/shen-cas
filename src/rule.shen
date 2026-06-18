@@ -62,7 +62,9 @@
                 (bindings-cover? (rule-lhs R) (rule-rhs R)))
            (let Sym (rule-head R)
                 Kind down
-                _ (set *db* (assert-rule (value *db*) Sym Kind R))
+                NewDb (assert-rule (value *db*) Sym Kind R)
+                _ (set *db* NewDb)
+                _ (trap-error (warn-on-rule-registration R) (/. _ true))
                 R)
            (error "register-rule: not a checked-rule or bindings not covered ~A" R)))
 

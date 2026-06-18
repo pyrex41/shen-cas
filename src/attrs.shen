@@ -119,6 +119,7 @@
                  _ (if (empty? Struct)
                        true
                        (declare-structural-sig Sym Struct))
+                 _ (trap-error (warn-on-attribute-declaration Sym) (/. _ true))
                  Sym)
             (error "declare-symbol: inconsistent attributes for ~A: ~A~%  (rejected combinations: hold-all+hold-{first,rest}, listable+hold-all)" Sym Attrs))))
 
