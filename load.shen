@@ -1,7 +1,7 @@
 \\ shen-cas top-level loader
 \\ Usage: (load "load.shen") from repo root (adjust paths for your Shen)
 
-(load "src/store.shen")   \\ will grow
+(load "src/store.shen")
 (load "src/expr.shen")
 (load "src/pattern.shen")
 (load "src/rule.shen")

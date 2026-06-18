@@ -3,20 +3,20 @@
 
 @meta {
   name init
-  updated 2026-06-18T19:53:43Z
+  updated 2026-06-18T19:57:18Z
 }
 
 @nodes
 # id | title | status | complexity | priority
 1 | Initialize repository directory structure | D | 1 | H
-2 | Implement Phase 0 test harness skeleton | P | 3 | H
-3 | Populate initial golden corpus and rejection fixtures | P | 3 | H
-4 | Document 4th-edition Shen syntax, hashing, and Phase 1 symbol policy | P | 2 | H
-5 | Implement content-addressed store module | X | 5 | H
+2 | Implement Phase 0 test harness skeleton | D | 3 | H
+3 | Populate initial golden corpus and rejection fixtures | D | 3 | H
+4 | Document 4th-edition Shen syntax, hashing, and Phase 1 symbol policy | D | 2 | H
+5 | Implement content-addressed store module | D | 5 | H
 5.1 | Define content hash type, intern table, and stable Merkle hashing primitives | P | 0 | H
 5.2 | Implement canonical constructors and O(1) hash-equality API | P | 0 | H
 5.3 | Add structural-signature registry stub for hash canonicalization | P | 0 | H
-6 | Define expr datatype and canonical constructors | P | 3 | H
+6 | Define expr datatype and canonical constructors | D | 3 | H
 7 | Implement first-order pattern language | X | 5 | H
 7.1 | Define pattern vs seq-pattern datatypes, reserved constructors, and compound typing rules | P | 0 | H
 7.2 | Add extract-bindings stubs and pattern utilities | P | 0 | H
