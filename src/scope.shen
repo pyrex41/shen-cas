@@ -111,12 +111,8 @@
         [[sym block] Binds Body]
         (error "block: non-symbol in binding position")))
 
-\\ db fork stubs (partial; db.shen will provide real immutable fork later)
-(define db-fork-stub
-  _ -> (value *rules*))   \\ return something shape-compatible for now
-
-(define get-current-basis-stub
-  -> (value *rules*))
+\\ Real db fork provided by db.shen (immutable snapshot + with for temp datoms)
+\\ Block uses it at reduce time via core reduce-block.
 
 \\ Convenience recognizers (minimal)
 (define module?
