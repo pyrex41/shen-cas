@@ -31,7 +31,7 @@
   Db [[[sym block-bind] S V] | Rest] ->
     \\ temporary binding: for skeleton, fork and add a simple constant-like datom for the symbol head
     \\ (real system could register a value rule or special entry)
-    (let TempDatom [S own (make-rule-datum [sym S] V) (db-size Db)]
+    (let TempDatom [S own (make-rule-stub [sym S] V) (db-size Db)]  ; use stub per reviewer findings for 019edc98-07ed...
          Child (db-fork-with Db [TempDatom])
          (apply-block-binds Child Rest))
   Db _ -> Db)

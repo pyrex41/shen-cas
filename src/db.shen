@@ -12,7 +12,7 @@
   Db -> Db)
 
 (define compute-basis
-  Ds -> (cn "basis:" (str (hash (str Ds) 1000000007))))  ;; content-derived placeholder (stub; real Merkle when store integration)
+  Ds -> (cn "basis:" (str (length Ds))))  \\ skeleton basis id (real Merkle over datom hashes later)
 
 (define db-basis
   Db -> (compute-basis (db-datoms Db)))
@@ -21,7 +21,8 @@
   A B -> (= A B))
 
 \\ rule rep in skeleton
-(define make-rule-stub L R -> [rule L R])
+(define make-rule-datum L R -> [rule L R])
+(define make-rule-stub L R -> [rule L R])  ; alias for compatibility (reviewer 019edc98-07ed...)
 (define checked-rule? _ -> true)
 
 (define assert-rule

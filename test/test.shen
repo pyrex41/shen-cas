@@ -50,31 +50,33 @@
 \\ TODO (Phase 0+): replace with real parser using load-golden-file (read lines, split on " -> ", convert to expr forms).
 (define golden-cases
   -> [
-    [12 -> 12]
-    [(sym Plus) -> (sym Plus)]
-    [[12 * [5 - 3]] -> 24]
-    [[9 - 8] -> 1]
-    [[2 + 3] -> 5]
-    [[6 / 2] -> 3]
-    [[4 * 7] -> 28]
-    [[2 + 3] * [4 - 1] -> 15]
-    [[56 + [x - 7]] -> [56 + [x - 7]]]
-    [[-245 * 67] -> -16415]
-    [[x / x] -> [x / x]]
-    [(sym x) -> (sym x)]
+    [12 12]
+    [[sym (protect Plus)] [sym (protect Plus)]]
+    [[[sym (protect Times)] [int 12] [[sym (protect Minus)] [int 5] [int 3]]] [int 24]]
+    [[[sym (protect Minus)] [int 9] [int 8]] [int 1]]
+    [[[sym (protect Plus)] [int 2] [int 3]] [int 5]]
+    [[[sym (protect Divide)] [int 6] [int 2]] [int 3]]
+    [[[sym (protect Times)] [int 4] [int 7]] [int 28]]
+    [[[sym (protect Times)] [[sym (protect Plus)] [int 2] [int 3]] [[sym (protect Minus)] [int 4] [int 1]]] [int 15]]
+    [[[sym (protect Plus)] [int 56] [[sym (protect Minus)] [sym (protect x)] [int 7]]] [[sym (protect Plus)] [int 56] [[sym (protect Minus)] [sym (protect x)] [int 7]]]]
+    [[[sym (protect Times)] [int -245] [int 67]] [int -16415]]
+    [[[sym (protect Divide)] [sym (protect x)] [sym (protect x)]] [[sym (protect Divide)] [sym (protect x)] [sym (protect x)]]]
+    [[sym (protect x)] [sym (protect x)]]
   ])
 
 \\ Run one case with trivial-reduce; return (pass? input expected got)
 (define run-golden-case
-  [In -> Exp] -> (let Got (trivial-reduce In)
-                      Pass (= Got Exp)
+  [In Exp] -> (let Got (reduce In)
+                      Pass (content-eq Got Exp)
                       (do (if Pass
                               (output "  PASS: ~A -> ~A~%" In Exp)
                               (output "  FAIL: ~A -> ~A got ~A~%" In Exp Got))
-                          Pass)))
+                          Pass))
+  C -> (do (output "  SKIP: malformed golden case ~A~%" C) false))
 
 (define run-golden
-  -> (let Cases (golden-cases)
+  -> (let Ign (demo-register-arith)
+            Cases (golden-cases)
             Results (map run-golden-case Cases)
             Passed (filter (/. X X) Results)
             (do (output "Golden: ~A/~A passed~%" (length Passed) (length Cases))
@@ -180,26 +182,26 @@
                          (and Eq Feq))))))
 
 (define phase1-golden-noop-idemp-trivial
-  -> (let Noops (filter (/. C (let [In -> Exp] C (= In Exp))) (golden-cases))
+  -> (let Noops (filter (/. C (= (hd C) (hd (tl C)))) (golden-cases))
             (do (output "Phase1: idempotence under trivial-reduce for golden no-op cases (~A) [see golden/arith-21.4.txt]~%" (length Noops))
-                (let oks (map (/. C (let [In -> Exp] C
+                (let oks (map (/. C (let In (hd C)
                               G (trivial-reduce In)
                               G2 (trivial-reduce G)
                               Ok (= G G2)
                               (do (output "  no-op ~A : trivial-reduce idempotent=~A~%" In Ok) Ok)))
                      Noops)
-                     (fold-left (/. Acc X (and Acc X)) true oks)))))
+                     (every (/. X X) oks)))))
 
 (define phase1-boot-arith-simplifications
   -> (let Ign (demo-register-arith)
             (do (output "Phase1: boot arith simplifications (via demo-reduce on registered rules)~%")
-                (let r1 (demo-reduce [(sym Plus) (int 2) (int 0)])
-                     r2 (demo-reduce [(sym Times) (int 1) (int 7)])
-                     r3 (demo-reduce [(sym Plus) [int 2] [int 3]])
+                (let r1 (demo-reduce [(sym (protect Plus)) (int 2) (int 0)])
+                     r2 (demo-reduce [(sym (protect Times)) (int 1) (int 7)])
+                     r3 (demo-reduce [(sym (protect Plus)) [int 2] [int 3]])
                      (do (output "  2+0 -> ~A~%" r1)
                          (output "  1*7 -> ~A~%" r2)
                          (output "  2+3 -> ~A~%" r3)
-                         (and (or (content-eq r1 (int 2)) (content-eq r1 [(sym Plus) (int 2) (int 0)]))  \\ allow partial
+                         (and (or (content-eq r1 (int 2)) (content-eq r1 [(sym (protect Plus)) (int 2) (int 0)]))  \\ allow partial
                               (or (content-eq r2 (int 7)) true)
                               true))))))
 
@@ -262,29 +264,28 @@
             HasTransDiamond (element? [(protect f) (protect i)] ReachDiamond)
             HasTrans (element? [(protect f) (protect h)] ReachAcyc)
             \\ enhance for direct-deps-from-pairs and more cases (per 11.3 review)
-            CyclePairs '(((protect c) ((protect d))) ((protect d) ((protect c))))
+            CyclePairs [[(protect c) [(protect d)]] [(protect d) [(protect c)]]]
             EdgesCP (direct-deps-from-pairs CyclePairs)
             LoopsCP (rule-dependency-loops-from-edges EdgesCP)
             HasC (element? (protect c) LoopsCP)
             HasD (element? (protect d) LoopsCP)
-            Mixed '(((protect e) ((protect f))) ((protect f) ((protect e))) ((protect e) ((protect e))))
+            Mixed [[(protect e) [(protect f)]] [(protect f) [(protect e)]] [(protect e) [(protect e)]]]
             EdgesM (direct-deps-from-pairs Mixed)
             LoopsM (rule-dependency-loops-from-edges EdgesM)
             HasE (element? (protect e) LoopsM)
             HasF2 (element? (protect f) LoopsM)
-            EmptyEdges '()
+            EmptyEdges []
             LoopsEmpty (rule-dependency-loops-from-edges EmptyEdges)
             NoLoopsEmpty (empty? LoopsEmpty)
-            \\ real db test for rule-dependency-loops + direct-deps (post 10.2/11.3)
-            R_f (rule [(sym (protect f))] [[sym (protect g)]] )
-            R_g (rule [(sym (protect g))] [[sym (protect f)]] )
+            R_f (rule [(sym (protect f))] [[sym (protect g)]])
+            R_g (rule [(sym (protect g))] [[sym (protect f)]])
             Db0 (empty-db)
             Db1 (assert-rule Db0 (protect f) down R_f)
             Db2 (assert-rule Db1 (protect g) down R_g)
             LoopsDb (rule-dependency-loops Db2)
             HasFdb (element? (protect f) LoopsDb)
             HasGdb (element? (protect g) LoopsDb)
-            SelfP (rule-dependency-loops-from-edges (direct-deps-from-pairs '(((protect s) ((protect s))))))
+            SelfP (rule-dependency-loops-from-edges (direct-deps-from-pairs [[(protect s) [(protect s)]]]))
             HasS (element? (protect s) SelfP)
             \\ 11.2 cold relations smoke (on the cyclic db)
             O1 (oneid-no-unary Db2)
@@ -321,14 +322,20 @@
               (do (output "~%SOME FAIL~%") false))))
 
 (define test-scope-block-fork
-  -> (let B1 (block-bind (protect tmp) (int 42))
-          Body [[sym Plus] (int 0) (int 1)]
+  -> (let Parent (value *db*)
+          ParentLen (length (db-datoms Parent))
+          B1 (block-bind (protect tmp) (int 42))
+          Body [[sym (protect Plus)] (int 0) (int 1)]
           Blk (block [B1] Body)
           R (reduce Blk)
-          (do (output "block fork test: constructed block, reduced body to ~A~%" R)
-              (or (content-eq R [[sym Plus] (int 0) (int 1)])
-                  (content-eq R (int 1))
-                  true))))  ;; body not fully reduced without rules, but fork path exercised; isolation holds by immutable db
+          AfterLen (length (db-datoms (value *db*)))
+          NonSymOk (trap-error (do (block [(block-bind 123 (int 1))] (int 0)) false) (/. _ true))
+          (do (output "block fork test: R=~A parentLen=~A after=~A nonSymRej=~A~%" R ParentLen AfterLen NonSymOk)
+              (and (= ParentLen AfterLen)
+                   NonSymOk
+                   (or (content-eq R [[sym (protect Plus)] (int 0) (int 1)])
+                       (content-eq R (int 1))
+                       true))))))  ; hardened per reviewer 019edc98-07ed... : check no-leak + ctor rejection
 
 \\ Auto-run on load
 (run-all-tests)
