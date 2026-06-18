@@ -1,7 +1,9 @@
-# Initial golden corpus (Phase 0 skeleton, from Book 21.4 inspiration)
-# Format (evolving): one case per relevant line or block
-# "input-expr" -> "expected-nf"
-# For now, simple literal that a trivial evaluator can "pass".
+# Golden corpus (Phase 0+). Format: EXPR -> EXPECTED (s-expr form for skeleton)
+# Sourced/inspired by Book of Shen 4th ed. 21.4 and plan examples.
+# Later roundtrips with reader.
 
 12 -> 12
-(symbol Plus) -> (symbol Plus)
+(sym Plus) -> (sym Plus)
+[(sym Plus) (int 1) (int 2)] -> [(sym Plus) (int 1) (int 2)]
+[(int 12) * [(int 5) - (int 3)]] -> [(int 24)]   # illustrative; real arith later
+
