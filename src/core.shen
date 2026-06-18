@@ -1,20 +1,54 @@
 \\ core.shen - Evaluation Core seam + naive reduce (Phase 1)
 \\ Later: full attribute handling, db-backed, memo, etc.
+\\ match.shen + match-seq + match-ac are loaded by load.shen before core.
 
-(load "src/rule.shen")
-(load "src/match.shen")
+\\ SCUD 15: backend seam (ref + stubs for compiled). Parameterize via current-*
+\\ Future backends must be basis-keyed and pass full harness.
+
 (load "src/db.shen")
+
+;; ref impl
+(define reduce-ref
+  E -> (reduce-db (value *db*) E))
+
+(define normal-form-ref
+  E -> (normal-form-db (value *db*) E))
+
+;; stub compiled backend (to be filled with basis-keyed compiled dispatch etc.)
+(define reduce-compiled
+  E -> E )
+
+(define normal-form-compiled
+  E -> E )
+
+(define current-core
+  -> 'ref )
+
+(define current-reduce
+  -> reduce-ref )
+
+(define current-normal-form
+  -> normal-form-ref )
 
 (define rules-for-expr
   Db E -> (if (and (cons? Db) (not (empty? (db-datoms Db))))
               (dispatch-candidates Db E)
               []))
 
+(define reduce-args
+  Db E -> (if (expr-compound? E)
+              (reduce-args-compound Db E)
+              E))
+
+(define reduce-args-compound
+  Db [H | Args] -> (append [H] (map (/. A (reduce-db Db A)) Args)))
+
 (define reduce-db
   Db E -> (if (block-form? E)
               (reduce-block Db E)
-              (let Rules (rules-for-expr Db E)
-                   (try-reduce-db Db E Rules))))
+              (let E1 (reduce-args Db E)
+                   Rules (rules-for-expr Db E1)
+                   (try-reduce-db Db E1 Rules))))
 
 (define block-form?
   [[sym block] _ _] -> true
@@ -29,15 +63,13 @@
 (define apply-block-binds
   Db [] -> Db
   Db [[[sym block-bind] S V] | Rest] ->
-    \\ temporary binding: for skeleton, fork and add a simple constant-like datom for the symbol head
-    \\ (real system could register a value rule or special entry)
-    (let TempDatom [S own (make-rule-stub [sym S] V) (db-size Db)]  ; use stub per reviewer findings for 019edc98-07ed...
+    (let TempDatom [S own (make-rule-datum [sym S] V) (db-size Db)]
          Child (db-fork-with Db [TempDatom])
          (apply-block-binds Child Rest))
   Db _ -> Db)
 
 (define reduce
-  E -> (reduce-db (value *db*) E))
+  E -> ((current-reduce) E))
 
 (define try-reduce-db
   Db E [] -> E
@@ -53,34 +85,22 @@
 (define rule-lhs [rule L _] -> L)
 (define rule-rhs [rule _ R] -> R)
 
-(define expr-head
-  [[sym S] | _] -> [sym S]
-  _ -> [])
-
-\\ normal-form : content + basis keyed memo (SCUD 10.2)
 (define normal-form-db
   Db E -> (let CH (content-hash E)
                BH (db-basis Db)
                K (nf-cache-key CH BH)
                Hit (nf-lookup K)
-               (if (cons? Hit)
+               (if (assoc-hit? Hit)
                    (hd (tl Hit))
                    (let NF (reduce-db Db E)
                         Ign (nf-store! K NF)
                         NF))))
 
 (define normal-form
-  E -> (normal-form-db (value *db*) E))
-
-\\ Naive registration of arith rules (now delegated to boot/arith.shen skeleton for SCUD 13.1)
-(set *arith-booted* false)
+  E -> ((current-normal-form) E))
 
 (define demo-register-arith
-  -> (if (value *arith-booted*)
-          true
-          (do (load "boot/arith.shen")
-              (set *arith-booted* true)
-              true)))
+  -> (do (load "boot/arith.shen") true))
 
 (define demo-reduce
   E -> (let Ign (demo-register-arith)
