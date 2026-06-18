@@ -53,22 +53,20 @@ bottom. The stages, in order:
    [`.scud/tasks/tasks.scg`](.scud/tasks/tasks.scg) (managed with the `scud` CLI: waves, next-task,
    status). Each task carried its own acceptance criteria and invariants.
 
-3. **Grok — first pass on the SCUD tasks.** Grok took the first implementation pass across the SCUD
-   task breakdown, building out the skeleton subsystems and recording its review in
+3. **GPT-5 — review of the SCUD tasks (before implementation).** GPT-5 reviewed and tightened the SCUD
+   task breakdown before any implementation pass began.
+
+4. **Grok — first implementation pass.** Grok took the first pass at the SCUD tasks, building out the
+   skeleton subsystems. Implementation ran as parallel subagents in isolated git worktrees, each
+   verified against the harness before integration into `main` — see
+   [`SUBAGENT-ORCHESTRATION-PLAN.md`](SUBAGENT-ORCHESTRATION-PLAN.md) and
    [`grok_review.md`](grok_review.md).
 
-4. **Graph-page review (first human pass).** The DAG was reviewed through a graph/visualization page,
-   walking the tasks node by node to check coverage and ordering.
+5. **GPT-5 — review of the implementation (after Grok).** GPT-5 then reviewed Grok's implementation
+   and fixed a large number of issues so the kernel actually loaded and ran; the resulting skeleton
+   state (SCUD 1–15) is captured in [`SKELETON_REVIEW.md`](SKELETON_REVIEW.md).
 
-5. **GPT-5 — review and plan improvement.** GPT-5 reviewed the state of the work and the plan and
-   tightened it.
-
-6. **Subagent orchestration.** Implementation tasks ran as parallel subagents in isolated git
-   worktrees, each verified against the harness before integration into `main` — see
-   [`SUBAGENT-ORCHESTRATION-PLAN.md`](SUBAGENT-ORCHESTRATION-PLAN.md). This produced the skeleton
-   through SCUD 1–15, recorded in [`SKELETON_REVIEW.md`](SKELETON_REVIEW.md).
-
-7. **Claude Code — review and the evaluator buildout workflow.** A code review of the running skeleton
+6. **Claude Code — review and the evaluator buildout workflow.** A code review of the running skeleton
    found that the green test bar hid real gaps (`reduce` was a rule-lookup table rather than an
    evaluator, Orderless matching was inert, Flat flattening was silently broken, the backend seam was
    bypassed, and two correctness gates passed only by load-order luck). That review fed a new plan to
