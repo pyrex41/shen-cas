@@ -247,7 +247,8 @@
         (external-case (protect rubi) (protect integrate) (protect pass) "atan-shape" "1/(1+x^2)" "")
         \\ 1/(a*x+b) -> (1/a)*Log[a*x+b] (wired integrate-table; diff-back verified).
         (external-case (protect rubi) (protect integrate) (protect pass) "shifted-reciprocal" "1/(x+1)" "")
-        (external-case (protect rubi) (protect integrate) (protect unsupported) "rational-linear-over-quadratic" "x/(1+x^2)" "")
+        \\ x/(1+x^2) -> (1/2)*Log[1+x^2] (log-derivative: Num = c*Den'; diff-back verified).
+        (external-case (protect rubi) (protect integrate) (protect pass) "rational-linear-over-quadratic" "x/(1+x^2)" "")
         (external-case (protect rubi) (protect integrate) (protect unsupported) "partial-fraction" "(x+1)/(x^2-1)" "")
         (external-case (protect rubi) (protect integrate) (protect unsupported) "proper-rational-quadratic" "1/(x^2+2*x+2)" "")
         (external-case (protect rubi) (protect integrate) (protect unsupported) "rational-cubic-denominator" "1/(x^3+1)" "")
