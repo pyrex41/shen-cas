@@ -330,6 +330,12 @@
     \\ Cancel / Together (exact).
     (external-case (protect sympy) (protect cancel) (protect pass) "cancel-rational" "Cancel[(x^2-1)/(x-1)]" "x+1")
     (external-case (protect sympy) (protect together) (protect pass) "together-rationals" "Together[1/x+1/(x+1)]" "(2*x+1)/(x^2+x)")
+    \\ Apart (T3.4): distinct linear factors only; recombination-gated (exact). Repeated
+    \\ root / irreducible quadratic stay inert (head unchanged). The partial-fraction
+    \\ INTEGRAL stays unsupported (Simplify has no Together, so diff-back can't close).
+    (external-case (protect sympy) (protect apart) (protect pass) "apart-two-poles" "Apart[1/((x-1)*(x+1))]" "1/2*(x-1)^-1+(-1/2)*(x+1)^-1")
+    (external-case (protect sympy) (protect apart) (protect inert) "apart-repeated-root" "Apart[1/(x^2-2*x+1)]" "")
+    (external-case (protect sympy) (protect apart) (protect inert) "apart-irreducible" "Apart[1/(x^2+1)]" "")
     \\ Solve (substitute-back oracle).
     (external-case (protect sympy) (protect solve) (protect pass) "solve-linear" "Solve[x-3==0,x]" "")
     (external-case (protect sympy) (protect solve) (protect pass) "solve-quadratic" "Solve[x^2-5*x+6==0,x]" "")
@@ -395,7 +401,8 @@
           Factor (corpus-feature-cases (protect factor) Cases)
           Cancel (corpus-feature-cases (protect cancel) Cases)
           Together (corpus-feature-cases (protect together) Cases)
-          (append Expand (append Factor (append Cancel Together)))))
+          Apart (corpus-feature-cases (protect apart) Cases)
+          (append Expand (append Factor (append Cancel (append Together Apart))))))
 
 (define sympy-frontier-structure-cases
   -> (let Cases (sympy-algebra-cases)

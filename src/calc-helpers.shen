@@ -75,6 +75,7 @@
   "Cancel"        [E]   -> (cancel-builtin E)
   "Together"      [E]   -> (together-builtin E)
   "Factor"        [P]   -> (factor-builtin P)
+  "Apart"         [E]   -> (apart-builtin E)
   \\ SCUD 19 Wave D: Solve polynomial equations in one variable over Q
   \\ (src/solve.shen). Declines ([none]) -> the head stays inert -- when
   \\ multivariate / symbolic-coefficient, the equation is identically zero, or a
