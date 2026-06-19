@@ -25,4 +25,5 @@
 (load "src/read.shen")
 
 (output "shen-cas loaded (skeleton). See plan.md and test.shen.~%")
+(load "test/test-calculus.shen")  \\ SCUD 22: defines run-calculus-tests (used by run-all-tests)
 (load "test/test.shen")

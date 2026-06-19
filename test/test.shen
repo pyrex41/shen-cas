@@ -48,12 +48,32 @@
     "bad-attr: (hold-all hold-first)"
   ])
 
+\\ SCUD 22: the rejection fixtures are now EXECUTABLE -- each actually drives the
+\\ real constructor / register-rule / declare-symbol and asserts it is rejected at
+\\ definition time. This is the static-checking thesis, proven rather than declared.
+(define rej-malformed-lhs       \\ atom LHS, no dispatch head (P0-2)
+  -> (trap-error (do (register-rule (rule [int 1] [int 2])) false) (/. E true)))
+(define rej-unbound-rhs         \\ RHS free var yrej not bound on LHS, not whitelisted
+  -> (trap-error (do (register-rule (rule [[sym (protect Grej)] (named (protect x) (blank))] [sym (protect yrej)])) false) (/. E true)))
+(define rej-unwhitelisted-head  \\ RHS head Bogusrej not in phase1-globals, not bound
+  -> (trap-error (do (register-rule (rule [[sym (protect Grej)] (named (protect x) (blank))] [[sym (protect Bogusrej)] [sym (protect x)]])) false) (/. E true)))
+(define rej-seq-as-lhs          \\ a bare sequence pattern is not a registrable LHS
+  -> (trap-error (do (register-rule (rule (blank-seq) [int 0])) false) (/. E true)))
+(define rej-bad-attr            \\ hold-all + hold-first is an inconsistent attribute set
+  -> (trap-error (do (declare-symbol (protect Zzrej) [(protect hold-all) (protect hold-first)]) false) (/. E true)))
+
 (define run-rejection-tests
-  -> (let Fixes (rejection-fixtures)
-            (do (output "Rejection fixtures declared (~A):~%" (length Fixes))
-                (map (/. F (output "  - ~A~%" F)) Fixes)
-                (output "  (enforcement comes in Phase 1+ with checked datatypes)~%")
-                true)))
+  -> (let R1 (rej-malformed-lhs)
+          R2 (rej-unbound-rhs)
+          R3 (rej-unwhitelisted-head)
+          R4 (rej-seq-as-lhs)
+          R5 (rej-bad-attr)
+          Ok (and R1 R2 R3 R4 R5)
+          (do (output "~%=== rejection fixtures (executable, SCUD 22) ===~%")
+              (output "  malformed-lhs=~A unbound-rhs=~A unwhitelisted-head=~A seq-as-lhs=~A bad-attr=~A~%" R1 R2 R3 R4 R5)
+              (if Ok (output "rejection fixtures: PASS (all rejected at definition time)~%")
+                  (output "rejection fixtures: FAIL (something ill-formed was accepted)~%"))
+              Ok)))
 
 (define attrs-demo
   -> (trap-error
@@ -653,7 +673,8 @@
             Ok (and (run-golden) (run-rejection-tests) (attrs-demo) (run-lfp-tests)
                     (run-analysis-tests) (run-phase1-skeleton) (test-scope-block-fork)
                     (test-backend-seam) (test-correctness-gate) (test-eval-evaluator-wave1)
-                    (test-simplify) (test-differentiation) (test-integration))
+                    (test-simplify) (test-differentiation) (test-integration)
+                    (run-calculus-tests))
             (do (if Ok (output "~%ALL PASS~%") (output "~%SOME FAIL~%")) Ok)))
 
 (define test-backend-seam

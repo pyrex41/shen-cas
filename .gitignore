@@ -19,3 +19,8 @@ golden-failures/
 # Temp
 /tmp/
 *.tmp
+
+# Session / agent artifacts (not project source)
+.claude/tracking/
+.claude/workflows/
+.worktrees/
