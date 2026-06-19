@@ -101,8 +101,45 @@
 (define integrate-wired
   Integrand V -> (let P (integrate-pullout Integrand V)
                       (if (= P [none])
-                          (integrate-by-parts Integrand V)
+                          (integrate-after-pullout Integrand V)
                           P)))
+
+(define integrate-after-pullout
+  Integrand V -> (let U (integrate-linear-usub Integrand V)
+                      (if (= U [none])
+                          (integrate-by-parts Integrand V)
+                          U)))
+
+\\ Linear-argument u-substitution for Sin/Cos/Exp: Integrate[g[a*x+b], x] where
+\\ the argument is linear in V. The linear coeffs are read off via polyalg's
+\\ expr->coeffs (so it is robust to the orderless canonical ordering of the inner
+\\ Plus -- a positional AC rule cannot match the hash-sorted form). expr->coeffs
+\\ declines (-> [none]) on any non-V generator, so symbolic coefficients stay
+\\ inert. Sound: a,b are genuine numeric coeffs; differentiate-back verifies.
+(define integrate-linear-usub
+  [[sym S] Arg] V -> (lusub-by-name (str S) Arg V)
+  _ _ -> [none])
+
+(define lusub-by-name
+  "Sin" Arg V -> (lusub-emit "Sin" Arg V)
+  "Cos" Arg V -> (lusub-emit "Cos" Arg V)
+  "Exp" Arg V -> (lusub-emit "Exp" Arg V)
+  _ _ _ -> [none])
+
+(define lusub-emit
+  Name Arg V -> (lusub-on-coeffs Name Arg (expr->coeffs V Arg)))
+
+\\ fires ONLY for a degree-1 argument: coeff vector is exactly [b a] (a = leading,
+\\ guaranteed nonzero). Degree 0 (constant arg) and degree >=2 -> decline.
+(define lusub-on-coeffs
+  Name Arg [some [B A]] -> [some (lusub-form Name Arg A)]
+  Name Arg _ -> [none])
+
+\\ (1/a) * G[arg], G the bare antiderivative: Sin->-Cos, Cos->Sin, Exp->Exp.
+(define lusub-form
+  "Sin" Arg A -> [(ct-times) [int -1] [(ct-power) A [int -1]] [[sym (protect Cos)] Arg]]
+  "Cos" Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Sin)] Arg]]
+  "Exp" Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Exp)] Arg]])
 
 \\ constant-factor pull-out: partition a Times integrand into the product of
 \\ x-free factors (Const) and the x-dependent rest (Rest). Fires only when there

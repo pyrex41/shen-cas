@@ -193,10 +193,11 @@
     (external-case (protect rubi) (protect integrate) (protect inert) "sin-cos-product" "Sin[x]*Cos[x]" "")
     (external-case (protect rubi) (protect integrate) (protect inert) "shifted-reciprocal" "1/(x+1)" "")
     (external-case (protect rubi) (protect integrate) (protect inert) "sqrt-x" "Sqrt[x]" "")
+    \\ Linear-argument u-substitution (wired integrate-linear-usub), diff-back verified.
+    (external-case (protect rubi) (protect integrate) (protect pass) "linear-arg-sin" "Sin[2*x+3]" "")
+    (external-case (protect rubi) (protect integrate) (protect pass) "linear-arg-cos" "Cos[2*x+3]" "")
+    (external-case (protect rubi) (protect integrate) (protect pass) "linear-arg-exp" "Exp[2*x+3]" "")
     \\ Frontier: not yet implemented (skipped). Flip to pass/inert as features land.
-    (external-case (protect rubi) (protect integrate) (protect unsupported) "linear-arg-sin" "Sin[2*x+3]" "")
-    (external-case (protect rubi) (protect integrate) (protect unsupported) "linear-arg-cos" "Cos[2*x+3]" "")
-    (external-case (protect rubi) (protect integrate) (protect unsupported) "linear-arg-exp" "Exp[2*x+3]" "")
     (external-case (protect rubi) (protect integrate) (protect unsupported) "sin-cubed" "Sin[x]^3" "")
     (external-case (protect rubi) (protect integrate) (protect unsupported) "cos-squared" "Cos[x]^2" "")
     (external-case (protect rubi) (protect integrate) (protect unsupported) "sec-squared" "Sec[x]^2" "")
@@ -264,6 +265,10 @@
     (external-case (protect sympy) (protect diff) (protect pass) "diff-tan" "D[Tan[x],x]" "Sec[x]^2")
     (external-case (protect sympy) (protect diff) (protect pass) "diff-log" "D[Log[x],x]" "x^-1")
     (external-case (protect sympy) (protect diff) (protect pass) "diff-composed-log" "D[Log[1+x^2],x]" "2*x*(1+x^2)^-1")
+    (external-case (protect sympy) (protect diff) (protect pass) "diff-arctan" "D[ArcTan[x],x]" "(1+x^2)^-1")
+    (external-case (protect sympy) (protect diff) (protect pass) "diff-arcsin" "D[ArcSin[x],x]" "(1-x^2)^(-1/2)")
+    (external-case (protect sympy) (protect diff) (protect pass) "diff-arccos" "D[ArcCos[x],x]" "-(1-x^2)^(-1/2)")
+    (external-case (protect sympy) (protect diff) (protect pass) "diff-sec" "D[Sec[x],x]" "Sec[x]*Tan[x]")
     \\ Series (exact, exact rational coefficients).
     (external-case (protect sympy) (protect series) (protect pass) "series-exp" "Series[Exp[x],x,5]" "1+x+1/2*x^2+1/6*x^3+1/24*x^4+1/120*x^5")
     (external-case (protect sympy) (protect series) (protect pass) "series-sin" "Series[Sin[x],x,7]" "x-1/6*x^3+1/120*x^5-1/5040*x^7")

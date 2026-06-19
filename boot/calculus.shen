@@ -144,6 +144,33 @@
   (rule [[sym (protect D)] [[sym (protect Sqrt)] [named (protect u) [blank]]] [named (protect x) [blank]]]
         [[sym (protect D)] [[sym (protect Power)] [sym (protect u)] [rat 1 2]] [sym (protect x)]]))
 
+\\ D[ArcTan[u],x] -> (1+u^2)^-1 * D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect ArcTan)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)]
+          [[sym (protect Power)] [[sym (protect Plus)] [int 1] [[sym (protect Power)] [sym (protect u)] [int 2]]] [int -1]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
+\\ D[ArcSin[u],x] -> (1-u^2)^(-1/2) * D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect ArcSin)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)]
+          [[sym (protect Power)] [[sym (protect Plus)] [int 1] [[sym (protect Times)] [int -1] [[sym (protect Power)] [sym (protect u)] [int 2]]]] [rat -1 2]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
+\\ D[ArcCos[u],x] -> -(1-u^2)^(-1/2) * D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect ArcCos)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)] [int -1]
+          [[sym (protect Power)] [[sym (protect Plus)] [int 1] [[sym (protect Times)] [int -1] [[sym (protect Power)] [sym (protect u)] [int 2]]]] [rat -1 2]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
+\\ D[Sec[u],x] -> Sec[u]*Tan[u]*D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect Sec)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)] [[sym (protect Sec)] [sym (protect u)]] [[sym (protect Tan)] [sym (protect u)]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
 \\ ===========================================================================
 \\ SCUD 21 Wave 5: BOUNDED symbolic integration rule library for Integrate[E,x].
 \\
@@ -201,56 +228,12 @@
         [[sym (protect Exp)] [sym (protect x)]]))
 
 \\ ---------------------------------------------------------------------------
-\\ I3. Linear u-substitution per table function (FreeOf guards make a
-\\     mis-binding fail SAFE to inert): for g in {Sin,Cos,Exp},
-\\       Integrate[g[Plus[Times[a,x],b]],x] /; (FreeOf[a,x] and FreeOf[b,x])
-\\         -> (1/a)*G[a*x+b]
-\\     where G is the bare antiderivative (Sin->-Cos, Cos->Sin, Exp->Exp).
+\\ I3. Linear u-substitution (Sin/Cos/Exp of a*x+b) is handled by the WIRED
+\\     helper `integrate-linear-usub` in src/calc-helpers.shen, which detects the
+\\     linear argument via polyalg's expr->coeffs (robust to the orderless
+\\     canonical ordering of the inner Plus, which a positional AC rule could not
+\\     match). The previous positional rules here were dead and were removed.
 \\ ---------------------------------------------------------------------------
-\\ Integrate[Sin[a x + b], x] -> -(1/a) Cos[a x + b]
-(register-rule
-  (rule [condition [[sym (protect Integrate)]
-                     [[sym (protect Sin)]
-                       [[sym (protect Plus)]
-                         [[sym (protect Times)] [named (protect a) [blank]] [named (protect x) [blank]]]
-                         [named (protect b) [blank]]]]
-                     [named (protect x) [blank]]]
-                   [[sym (protect And)]
-                     [[sym (protect FreeQ)] [sym (protect a)] [sym (protect x)]]
-                     [[sym (protect FreeQ)] [sym (protect b)] [sym (protect x)]]]]
-        [[sym (protect Times)] [int -1] [[sym (protect Power)] [sym (protect a)] [int -1]]
-          [[sym (protect Cos)]
-            [[sym (protect Plus)] [[sym (protect Times)] [sym (protect a)] [sym (protect x)]] [sym (protect b)]]]]))
-
-\\ Integrate[Cos[a x + b], x] -> (1/a) Sin[a x + b]
-(register-rule
-  (rule [condition [[sym (protect Integrate)]
-                     [[sym (protect Cos)]
-                       [[sym (protect Plus)]
-                         [[sym (protect Times)] [named (protect a) [blank]] [named (protect x) [blank]]]
-                         [named (protect b) [blank]]]]
-                     [named (protect x) [blank]]]
-                   [[sym (protect And)]
-                     [[sym (protect FreeQ)] [sym (protect a)] [sym (protect x)]]
-                     [[sym (protect FreeQ)] [sym (protect b)] [sym (protect x)]]]]
-        [[sym (protect Times)] [[sym (protect Power)] [sym (protect a)] [int -1]]
-          [[sym (protect Sin)]
-            [[sym (protect Plus)] [[sym (protect Times)] [sym (protect a)] [sym (protect x)]] [sym (protect b)]]]]))
-
-\\ Integrate[Exp[a x + b], x] -> (1/a) Exp[a x + b]
-(register-rule
-  (rule [condition [[sym (protect Integrate)]
-                     [[sym (protect Exp)]
-                       [[sym (protect Plus)]
-                         [[sym (protect Times)] [named (protect a) [blank]] [named (protect x) [blank]]]
-                         [named (protect b) [blank]]]]
-                     [named (protect x) [blank]]]
-                   [[sym (protect And)]
-                     [[sym (protect FreeQ)] [sym (protect a)] [sym (protect x)]]
-                     [[sym (protect FreeQ)] [sym (protect b)] [sym (protect x)]]]]
-        [[sym (protect Times)] [[sym (protect Power)] [sym (protect a)] [int -1]]
-          [[sym (protect Exp)]
-            [[sym (protect Plus)] [[sym (protect Times)] [sym (protect a)] [sym (protect x)]] [sym (protect b)]]]]))
 
 \\ ---------------------------------------------------------------------------
 \\ I4. Power rule (bare variable): Integrate[Power[x,n],x]
