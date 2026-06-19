@@ -101,8 +101,113 @@
 (define integrate-wired
   Integrand V -> (let P (integrate-pullout Integrand V)
                       (if (= P [none])
-                          (integrate-by-parts Integrand V)
+                          (integrate-after-pullout Integrand V)
                           P)))
+
+(define integrate-after-pullout
+  Integrand V -> (let U (integrate-linear-usub Integrand V)
+                      (if (= U [none])
+                          (integrate-after-usub Integrand V)
+                          U)))
+
+(define integrate-after-usub
+  Integrand V -> (let T (integrate-table Integrand V)
+                      (if (= T [none])
+                          (integrate-by-parts Integrand V)
+                          T)))
+
+\\ Wired antiderivative table for forms a positional AC rule cannot match because
+\\ of the orderless canonical ordering of the inner Plus. Detection via expr->coeffs
+\\ (degree-indexed, order-independent). Differentiate-back verifies; declines -> [none].
+\\   Integrate[1/(1+x^2), x] -> ArcTan[x]   (denominator coeff vector == [1,0,1])
+(define integrate-table
+  [[sym S] Num Den] V -> (itable-divide (str S) Num Den V)
+  _ _ -> [none])
+
+(define itable-divide
+  "Divide" Num Den V -> (itable-on-divide Num Den V)
+  _ _ _ _ -> [none])
+
+\\ 1/Den: ArcTan if Den == 1+x^2, else (1/a)Log[Den] if Den is linear.
+\\ Num/Den (general): c*Log[Den] when Num is a numeric multiple of Den' (u'/u form).
+(define itable-on-divide
+  [int 1] Den V -> (itable-recip Den V (expr->coeffs V Den))
+  Num Den V -> (itable-logderiv Num Den V))
+
+(define itable-recip
+  Den V [some [B Z A]] -> (if (one-zero-one? B Z A)
+                              [some [[sym (protect ArcTan)] V]]
+                              [none])
+  Den V [some [B A]] -> [some [(ct-times) [(ct-power) A [int -1]] [[sym (protect Log)] Den]]]
+  Den V _ -> [none])
+
+(define one-zero-one?
+  B Z A -> (if (content-eq B [int 1])
+               (if (content-eq Z [int 0]) (content-eq A [int 1]) false)
+               false))
+
+\\ log-derivative: Integrate[Num/Den, x] -> c*Log[Den] when Num == c*Den' (c numeric).
+(define itable-logderiv
+  Num Den V -> (itable-logderiv-2 Num Den V (expr->coeffs V Num)
+                                  (expr->coeffs V (reduce [[sym (protect D)] Den V]))))
+
+(define itable-logderiv-2
+  Num Den V [some NV] [some DV] -> (itable-logderiv-3 Den (vec-ratio NV DV))
+  Num Den V _ _ -> [none])
+
+(define itable-logderiv-3
+  Den [some C] -> [some [(ct-times) C [[sym (protect Log)] Den]]]
+  Den _ -> [none])
+
+\\ vec-ratio NumV DpV -> [some c] if NumV == c*DpV elementwise (c numeric), else [none].
+\\ Trimmed coeff vectors have a nonzero leading entry, so same degree => same length.
+(define vec-ratio
+  NumV DpV -> (if (= (length NumV) (length DpV))
+                  (vr-check-ratio NumV DpV (num-div (vr-last NumV) (vr-last DpV)))
+                  [none]))
+
+(define vr-last
+  [X] -> X
+  [_ | Xs] -> (vr-last Xs))
+
+(define vr-check-ratio
+  NumV DpV C -> (if (vr-elementwise? NumV DpV C) [some C] [none]))
+
+(define vr-elementwise?
+  [] [] _ -> true
+  [N | Ns] [D | Ds] C -> (if (num-eq? N (num-mul C D)) (vr-elementwise? Ns Ds C) false)
+  _ _ _ -> false)
+
+\\ Linear-argument u-substitution for Sin/Cos/Exp: Integrate[g[a*x+b], x] where
+\\ the argument is linear in V. The linear coeffs are read off via polyalg's
+\\ expr->coeffs (so it is robust to the orderless canonical ordering of the inner
+\\ Plus -- a positional AC rule cannot match the hash-sorted form). expr->coeffs
+\\ declines (-> [none]) on any non-V generator, so symbolic coefficients stay
+\\ inert. Sound: a,b are genuine numeric coeffs; differentiate-back verifies.
+(define integrate-linear-usub
+  [[sym S] Arg] V -> (lusub-by-name (str S) Arg V)
+  _ _ -> [none])
+
+(define lusub-by-name
+  "Sin" Arg V -> (lusub-emit "Sin" Arg V)
+  "Cos" Arg V -> (lusub-emit "Cos" Arg V)
+  "Exp" Arg V -> (lusub-emit "Exp" Arg V)
+  _ _ _ -> [none])
+
+(define lusub-emit
+  Name Arg V -> (lusub-on-coeffs Name Arg (expr->coeffs V Arg)))
+
+\\ fires ONLY for a degree-1 argument: coeff vector is exactly [b a] (a = leading,
+\\ guaranteed nonzero). Degree 0 (constant arg) and degree >=2 -> decline.
+(define lusub-on-coeffs
+  Name Arg [some [B A]] -> [some (lusub-form Name Arg A)]
+  Name Arg _ -> [none])
+
+\\ (1/a) * G[arg], G the bare antiderivative: Sin->-Cos, Cos->Sin, Exp->Exp.
+(define lusub-form
+  "Sin" Arg A -> [(ct-times) [int -1] [(ct-power) A [int -1]] [[sym (protect Cos)] Arg]]
+  "Cos" Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Sin)] Arg]]
+  "Exp" Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Exp)] Arg]])
 
 \\ constant-factor pull-out: partition a Times integrand into the product of
 \\ x-free factors (Const) and the x-dependent rest (Rest). Fires only when there
@@ -157,15 +262,22 @@
 (define ct-times -> [sym (protect Times)])
 (define ct-power -> [sym (protect Power)])
 
-(define plus-head?  [sym S] -> (= (str S) "Plus")  _ -> false)
-(define times-head? [sym S] -> (= (str S) "Times") _ -> false)
-(define power-head? [sym S] -> (= (str S) "Power") _ -> false)
+(define plus-head?   [sym S] -> (= (str S) "Plus")   _ -> false)
+(define times-head?  [sym S] -> (= (str S) "Times")  _ -> false)
+(define power-head?  [sym S] -> (= (str S) "Power")  _ -> false)
+(define divide-head? [sym S] -> (= (str S) "Divide") _ -> false)
 
 \\ top-level dispatch: recurse into args, then collect at this node.
+\\ Divide[a,b] is normalized to Times[a, Power[b,-1]] FIRST so that a rational
+\\ written with the Divide head and the same quantity written as a negative power
+\\ collapse together -- this is what lets differentiate-back verify integrals
+\\ whose integrand is a Divide but whose D-image is a Power[.,-1] (e.g. ArcTan,
+\\ Log). Scoped to Simplify; the global evaluator/printer keep the Divide head.
 (define collect-like-terms
   [sym S] -> [sym S]
   [int N] -> [int N]
   [rat N D] -> [rat N D]
+  [H A B] -> (collect-like-terms [(ct-times) A [(ct-power) B [int -1]]]) where (divide-head? H)
   [H | Args] -> (collect-node H (map (/. A (collect-like-terms A)) Args))
   E -> E)
 

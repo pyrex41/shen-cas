@@ -1,0 +1,33 @@
+{
+  "name": "shen-cas",
+  "_doc": [
+    "Bifrost suite manifest for shen-cas. Lets Bifrost drive shen-cas's own",
+    "test suite across every Shen port Bifrost supports and assert the ports",
+    "AGREE (byte-identical normalised stdout) AND each reports the harness's",
+    "success marker 'ALL PASS'.",
+    "",
+    "Run from anywhere:",
+    "  python3 /path/to/bifrost/bifrost.py --suite /path/to/shen-cas/bifrost.suite.json --heavy",
+    "or, if checked out side-by-side:",
+    "  python3 ../bifrost/bifrost.py --suite ./bifrost.suite.json --heavy",
+    "",
+    "Ports are resolved from Bifrost's own adapters.json (launcher locations",
+    "are machine-global). 'root'/'default_cwd' default to this file's dir, so",
+    "load.shen's relative (load \"src/...\") resolves correctly."
+  ],
+  "root": ".",
+  "cases": [
+    {
+      "name": "cas-self-suite",
+      "mode": "script",
+      "program": "load.shen",
+      "expect": "agreement",
+      "marker": "ALL PASS",
+      "heavy": true,
+      "doc": "shen-cas loads its full kernel + runs run-all-tests on every port; all ports must produce identical output AND report 'ALL PASS'."
+    }
+  ],
+  "strip_line_prefixes": [
+    "shen-cas loaded"
+  ]
+}

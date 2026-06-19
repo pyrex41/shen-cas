@@ -1,0 +1,54 @@
+[
+  {
+    "id": "sympy:simplify:collect-like-terms",
+    "source": "sympy",
+    "feature": "simplify",
+    "mode": "pass",
+    "shen_input": "Simplify[3*x+2*x]",
+    "sympy_expr": "3*x + 2*x",
+    "notes": "Supported collect-like-terms fragment."
+  },
+  {
+    "id": "sympy:expand:binomial-square",
+    "source": "sympy",
+    "feature": "expand",
+    "mode": "pass",
+    "shen_input": "Expand[(x+1)^2]",
+    "sympy_expr": "(x + 1)^2",
+    "notes": "Polynomial expansion fragment."
+  },
+  {
+    "id": "sympy:diff:log",
+    "source": "sympy",
+    "feature": "diff",
+    "mode": "pass",
+    "shen_input": "D[Log[x],x]",
+    "sympy_expr": "log(x)",
+    "notes": "Derivative compared up to SymPy simplification."
+  },
+  {
+    "id": "rubi:integrate:sin",
+    "source": "rubi",
+    "feature": "integrate",
+    "mode": "pass",
+    "shen_input": "Integrate[Sin[x],x]",
+    "sympy_expr": "sin(x)",
+    "notes": "Antiderivative compared modulo constants."
+  },
+  {
+    "id": "rubi:integrate:log-inert",
+    "source": "rubi",
+    "feature": "integrate",
+    "mode": "inert",
+    "shen_input": "Integrate[Log[x],x]",
+    "notes": "Current bounded integrator should decline safely."
+  },
+  {
+    "id": "sympy:matrix:det2",
+    "source": "sympy",
+    "feature": "matrix",
+    "mode": "unsupported",
+    "shen_input": "Det[{{a,b},{c,d}}]",
+    "notes": "No matrix/list reader surface yet; tracked as future coverage."
+  }
+]

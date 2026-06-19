@@ -31,6 +31,114 @@
                  true)
              Ok)))
 
+(define parser-fuzz-case
+  [Label S] ->
+    (let E (parse-expr-string S)
+         Printed (print-expr E)
+         E2 (parse-expr-string Printed)
+         Ok (content-eq E2 E)
+         (do (if (not Ok)
+                 (output "  FUZZ FAIL ~A: ~A -> ~A printed ~A reparsed ~A~%"
+                         Label S E Printed E2)
+                 true)
+             Ok))
+  X -> (do (output "  FUZZ malformed case: ~A~%" X) false))
+
+(define parser-printer-fuzz-cases
+  -> [
+    \\ atoms, whitespace, and exact rational literals
+    ["atom-symbol" "alpha"]
+    ["atom-symbol-digits" "x12"]
+    ["atom-int-zero" "0"]
+    ["atom-int-large" "123456"]
+    ["atom-neg-int" "-42"]
+    ["rat-basic" "1/2"]
+    ["rat-normalize" "6/4"]
+    ["rat-int-normalize" "4/2"]
+    ["rat-negative" "-3/4"]
+    ["rat-paren-negative" "(-3)/4"]
+    ["whitespace" " ( a + b ) * c "]
+
+    \\ precedence and associativity
+    ["prec-plus-times" "a+b*c"]
+    ["prec-times-plus" "a*b+c"]
+    ["prec-paren-times" "(a+b)*c"]
+    ["assoc-plus-left" "a+b+c"]
+    ["assoc-times-left" "a*b*c"]
+    ["assoc-div-left" "a/b/c"]
+    ["assoc-div-right-paren" "a/(b/c)"]
+    ["assoc-power-right" "x^y^z"]
+    ["assoc-power-left-paren" "(x^y)^z"]
+    ["power-product-base" "(a*b)^c"]
+    ["power-sum-exp" "x^(a+b)"]
+    ["power-neg-exp" "x^-2"]
+    ["power-rat-exp-positive" "x^(1/2)"]
+    ["power-rat-exp" "x^(-1/2)"]
+
+    \\ unary minus and subtraction edge cases
+    ["unary-symbol" "-x"]
+    ["unary-power" "-x^2"]
+    ["unary-power-paren-base" "(-x)^2"]
+    ["unary-paren-sum" "-(x+y)"]
+    ["unary-app" "-Sin[x]"]
+    ["unary-product" "-x*y"]
+    ["unary-implicit-coeff" "-2x"]
+    ["sub-int" "x-1"]
+    ["sub-symbol" "x-y"]
+    ["sub-product" "x-y*z"]
+    ["sub-coeff-implicit" "x-2y"]
+    ["sub-paren" "x-(y+z)"]
+
+    \\ implicit multiplication
+    ["implicit-num-symbol" "2x"]
+    ["implicit-num-paren" "3(x+1)"]
+    ["implicit-paren-paren" "(x+1)(x-1)"]
+    ["implicit-symbol-paren" "x(y+1)"]
+    ["implicit-app-symbol" "Sin[x]y"]
+    ["implicit-app-paren" "f[x](y+1)"]
+    ["implicit-chain" "2x(y+1)"]
+    ["implicit-before-power" "2x^2"]
+
+    \\ Divide syntax versus rational literal syntax
+    ["divide-symbols" "a/b"]
+    ["divide-sum-denom" "a/(b+c)"]
+    ["divide-sum-numer" "(a+b)/c"]
+    ["divide-app" "f[x]/g[y]"]
+    ["divide-rat-times-symbol" "1/2*x"]
+    ["divide-symbol-int" "x/2"]
+    ["divide-int-symbol" "2/x"]
+
+    \\ function applications, including empty, nested, and multi-arg calls
+    ["app-empty" "f[]"]
+    ["app-one" "f[x]"]
+    ["app-multi" "f[x,y,z]"]
+    ["app-nested" "f[g[x],h[y,z]]"]
+    ["app-expr-args" "f[x+1,2*y,z^2]"]
+    ["app-rational-arg" "f[1/2*x,-3/4]"]
+    ["app-nested-power" "Sin[x]^2"]
+    ["app-calculus-shape" "D[Sin[x^2],x]"]
+    ["app-solve-shape" "Solve[x^2-1==0,x]"]
+
+    \\ equality syntax (reader currently supports == as Equal)
+    ["eq-symbols" "x==y"]
+    ["eq-plus-times" "x+1==2*y"]
+    ["eq-power" "x^2==1"]
+    ["eq-paren-left" "(x+1)==(y+2)"]
+    ["eq-nested-left" "(x==y)==z"]
+    ["eq-in-app" "Solve[x^2-5*x+6==0,x]"]
+  ])
+
+(define run-parser-printer-fuzz-corpus
+  -> (let Ign (output "~%=== parser/printer deterministic corpus ===~%")
+          Cases (parser-printer-fuzz-cases)
+          Results (map (/. C (parser-fuzz-case C)) Cases)
+          Passed (filter (/. X X) Results)
+          Ok (= (length Passed) (length Cases))
+          (do (output "parser/printer corpus: ~A/~A passed~%" (length Passed) (length Cases))
+              (if Ok (output "parser/printer deterministic corpus: PASS~%")
+                  (output "parser/printer deterministic corpus: FAIL~%"))
+              Ok)))
+
 (define run-reader-printer-tests
   -> (let Ign (output "~%=== SCUD 16 reader/printer round-trip ===~%")
           \\ ints (including negative), rationals, symbols
@@ -94,8 +202,9 @@
           R (parse-rule-string "f[x_]:=x+1")
           RegOk (trap-error (do (register-rule R) true) (/. E false))
           C16 RegOk
+          FuzzOk (run-parser-printer-fuzz-corpus)
           Ok (every (/. X X) [C1 C2 C3 C3b C3c C3d C4 C5 C6 C7 C8 C9 C10 C11 C12
-                              C12a C12b C12c C12d C13 C14 C15 C16])
+                              C12a C12b C12c C12d C13 C14 C15 C16 FuzzOk])
           (do (output "16RT: int=~A neg=~A rat=~A rat-print=~A rat-norm=~A rat-int=~A sym=~A app=~A nested=~A prec1=~A prec2=~A pow=~A parens=~A imult=~A div=~A sub-int=~A sub-sym=~A sub-coeff=~A unary-pow=~A x_=~A x__=~A x___=~A rule-reg=~A~%"
                       C1 C2 C3 C3b C3c C3d C4 C5 C6 C7 C8 C9 C10 C11 C12 C12a C12b C12c C12d C13 C14 C15 C16)
               (if Ok (output "reader/printer (SCUD 16): PASS~%")
