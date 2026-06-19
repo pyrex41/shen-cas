@@ -166,8 +166,43 @@
   Args -> (trap-error (limit-attempt Args) (/. E [none])))
 
 (define limit-attempt
-  [F [sym V] V0] -> (limit-go F [sym V] V0 (se-limit-max-depth))
+  [F [sym V] V0] -> (if (se-infinity? V0)
+                        (limit-at-infinity F [sym V])
+                        (limit-go F [sym V] V0 (se-limit-max-depth)))
   _ -> [none])
+
+(define se-infinity?
+  [sym S] -> (= (str S) "Infinity")
+  _ -> false)
+
+(define se-recip
+  V -> [[sym (protect Divide)] [int 1] V])
+
+\\ Limit[F, V, Infinity] for a RATIONAL function F = P(V)/Q(V): compare the
+\\ degrees of numerator and denominator (exact, via expr->coeffs).
+\\   deg P <  deg Q  -> 0
+\\   deg P == deg Q  -> lead(P)/lead(Q)
+\\   deg P >  deg Q  -> INERT (we do not claim ±Infinity without extended reals)
+\\ Non-rational / non-ratio forms stay INERT. Sound: the degree law is exact for
+\\ rational functions; everything outside it declines.
+(define limit-at-infinity
+  F V -> (lim-inf-ratio V (se-as-ratio F)))
+
+(define lim-inf-ratio
+  V [some [P Q]] -> (lim-inf-coeffs (expr->coeffs V P) (expr->coeffs V Q))
+  V _ -> [none])
+
+(define lim-inf-coeffs
+  [some PV] [some QV] -> (lim-inf-decide (coeffs-deg PV) (coeffs-deg QV) PV QV)
+  _ _ -> [none])
+
+(define lim-inf-decide
+  DP DQ PV QV -> (if (< DP DQ)
+                     [some [int 0]]
+                     (if (= DP DQ)
+                         [some (reduce [(se-times) (coeffs-lead PV)
+                                         [(se-power) (coeffs-lead QV) [int -1]]])]
+                         [none])))
 
 \\ Try direct substitution first; if that yields a well-defined numeric value,
 \\ return it. Otherwise, if F is a 0/0 ratio, apply L'Hopital (bounded depth).

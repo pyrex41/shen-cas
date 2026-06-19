@@ -113,8 +113,39 @@
 (define integrate-after-usub
   Integrand V -> (let T (integrate-table Integrand V)
                       (if (= T [none])
-                          (integrate-by-parts Integrand V)
+                          (integrate-after-table Integrand V)
                           T)))
+
+\\ Unified post-table dispatch chain (Tier 2/3). Each stage is shape-specific and
+\\ self-gated (declines to [none] outside its narrow sound shape), so order among
+\\ them does not affect correctness; integrate-by-parts stays the final fallback.
+\\   integrate-invfun    T2.4  ∫ArcTan[x], ∫ArcSin[x]
+\\   integrate-log-parts T2.2  ∫Log[x], ∫x^n Log[x]
+\\   integrate-cyclic    T3.3  ∫Exp[x] Sin[x], ∫Exp[x] Cos[x]
+\\   integrate-trigpow   T3.2  ∫Cos[x]^2, ∫Sin[x]^2, ∫Sec[x]^2
+(define integrate-after-table
+  Integrand V -> (let I (integrate-invfun Integrand V)
+                      (if (= I [none])
+                          (integrate-after-invfun Integrand V)
+                          I)))
+
+(define integrate-after-invfun
+  Integrand V -> (let L (integrate-log-parts Integrand V)
+                      (if (= L [none])
+                          (integrate-after-log Integrand V)
+                          L)))
+
+(define integrate-after-log
+  Integrand V -> (let C (integrate-cyclic Integrand V)
+                      (if (= C [none])
+                          (integrate-after-cyclic Integrand V)
+                          C)))
+
+(define integrate-after-cyclic
+  Integrand V -> (let P (integrate-trigpow Integrand V)
+                      (if (= P [none])
+                          (integrate-by-parts Integrand V)
+                          P)))
 
 \\ Wired antiderivative table for forms a positional AC rule cannot match because
 \\ of the orderless canonical ordering of the inner Plus. Detection via expr->coeffs
@@ -397,10 +428,82 @@
   [H | Inner] -> (flatten-plus-args Inner) where (plus-head? H)
   A -> [A])
 
+\\ -------------------- Pythagorean fold: c*Sin[u]^2 + c*Cos[u]^2 -> c ----------
+\\ Wired (the AC matcher cannot match the hash-sorted Plus). Operates on the
+\\ collected addend list: when a Sin[u]^2 addend and a Cos[u]^2 addend share the
+\\ SAME numeric coefficient c and the SAME u, replace the pair with the constant c
+\\ and re-collect. The exact identity c(sin^2+cos^2)=c makes this always sound; it
+\\ also closes the differentiate-back for ∫Sin^2/∫Cos^2 (T3.2). Terminates: each
+\\ fold removes two trig-square addends and adds one numeric (never a trig square).
+(define pyth-fold-addends
+  Addends -> (let P (pyth-find-pair Addends Addends)
+                  (if (= P [none])
+                      Addends
+                      (pyth-apply P Addends))))
+
+\\ classify addend as c*Trig[u]^2 -> [some [c u]] / [none], via addend-coeff-base.
+(define pyth-trig-term
+  Name Addend -> (pyth-trig-cb Name (addend-coeff-base Addend)))
+
+(define pyth-trig-cb
+  Name [C [[sym P] [[sym F] U] E]] -> (pyth-trig-chk Name C U (str P) (str F) E)
+  Name _ -> [none])
+
+(define pyth-trig-chk
+  Name C U PStr FStr E -> (if (= PStr "Power")
+                              (if (= FStr Name)
+                                  (if (number-expr? E)
+                                      (if (num-eq? E [int 2]) [some [C U]] [none])
+                                      [none])
+                                  [none])
+                              [none]))
+
+(define pyth-find-pair
+  [] _ -> [none]
+  [A | As] All -> (pyth-find-pair-step (pyth-trig-term "Sin" A) As All))
+
+(define pyth-find-pair-step
+  [none] As All -> (pyth-find-pair As All)
+  [some [C U]] As All -> (if (pyth-has-cos? C U All)
+                             [some [C U]]
+                             (pyth-find-pair As All)))
+
+(define pyth-has-cos?
+  C U [] -> false
+  C U [A | As] -> (pyth-has-cos-step C U (pyth-trig-term "Cos" A) As))
+
+(define pyth-has-cos-step
+  C U [none] As -> (pyth-has-cos? C U As)
+  C U [some [C2 U2]] As -> (if (num-eq? C C2)
+                               (if (content-eq U U2) true (pyth-has-cos? C U As))
+                               (pyth-has-cos? C U As)))
+
+\\ Drop the matched pair, prepend the constant C, then RE-GROUP (so C folds with
+\\ any sibling constant) and RE-FOLD (another u-pair may remain). Stays in the
+\\ addend-list domain -- must return a list, not an expr.
+(define pyth-apply
+  [some [C U]] Addends -> (pyth-fold-addends
+                            (drop-zeros
+                              (map (/. G (group->addend G))
+                                   (plus-groups [C | (pyth-drop "Cos" C U (pyth-drop "Sin" C U Addends))] [])))))
+
+(define pyth-drop
+  Name C U [] -> []
+  Name C U [A | As] -> (pyth-drop-step Name C U A As (pyth-trig-term Name A)))
+
+(define pyth-drop-step
+  Name C U A As [none] -> [A | (pyth-drop Name C U As)]
+  Name C U A As [some [C2 U2]] -> (if (num-eq? C C2)
+                                      (if (content-eq U U2)
+                                          As
+                                          [A | (pyth-drop Name C U As)])
+                                      [A | (pyth-drop Name C U As)]))
+
 (define collect-plus
   Args0 -> (let Args (flatten-plus-args Args0)
                 Groups (plus-groups Args [])
-               Addends (drop-zeros (map (/. G (group->addend G)) Groups))
+               Addends0 (drop-zeros (map (/. G (group->addend G)) Groups))
+               Addends (pyth-fold-addends Addends0)
                (rebuild-nary (ct-plus) Addends [int 0])))
 
 \\ -------------------- Times: gather equal bases into Power ---------------------
@@ -610,5 +713,182 @@
                      (normal-form
                        [(ct-plus) [(ct-times) U Vanti]
                                   [(ct-times) [int -1] Sub]]))])))
+
+\\ ============================================================================
+\\ Tier 2/3 integration helpers. SHARED differentiate-back soundness gate mirrors
+\\ the corpus oracle ext-integrates-back?: true iff reduce[Simplify[D[R,V] - F]]
+\\ == [int 0]. Every helper below COMMITS [some R] only when this holds, so a
+\\ wrong candidate can only ever stay INERT. SOUND > COMPLETE. Re-entrancy is
+\\ safe: R is a closed antiderivative (no Integrate head), so the nested reduce
+\\ cannot re-enter integrate-wired.
+\\ ============================================================================
+(define integ-diffback-ok?
+  R Integrand V -> (content-eq
+                     (reduce [[sym (protect Simplify)]
+                               [(ct-plus) [[sym (protect D)] R V]
+                                          [(ct-times) [int -1] Integrand]]])
+                     [int 0]))
+
+\\ ---- T2.4: inverse-function antiderivatives via by-parts closed forms --------
+\\   ∫ArcTan[x] dx = x ArcTan[x] - (1/2) Log[1+x^2]
+\\   ∫ArcSin[x] dx = x ArcSin[x] + (1-x^2)^(1/2)
+\\ Fires only on Integrate[f[x],x] with f in {ArcTan,ArcSin} over the BARE var.
+(define integrate-invfun
+  [[sym S] Arg] V -> (iv-by-name (str S) Arg V)
+  _ _ -> [none])
+
+(define iv-by-name
+  "ArcTan" Arg V -> (iv-commit (iv-candidate "ArcTan" V) [[sym (protect ArcTan)] Arg] V)
+                    where (content-eq Arg V)
+  "ArcSin" Arg V -> (iv-commit (iv-candidate "ArcSin" V) [[sym (protect ArcSin)] Arg] V)
+                    where (content-eq Arg V)
+  _ _ _ -> [none])
+
+(define iv-candidate
+  "ArcTan" V -> [(ct-plus)
+                  [(ct-times) V [[sym (protect ArcTan)] V]]
+                  [(ct-times) [rat -1 2]
+                              [[sym (protect Log)]
+                                [(ct-plus) [int 1] [(ct-power) V [int 2]]]]]]
+  "ArcSin" V -> [(ct-plus)
+                  [(ct-times) V [[sym (protect ArcSin)] V]]
+                  [(ct-power)
+                    [(ct-plus) [int 1] [(ct-times) [int -1] [(ct-power) V [int 2]]]]
+                    [rat 1 2]]])
+
+(define iv-commit
+  Cand Integrand V -> (if (integ-diffback-ok? Cand Integrand V) [some Cand] [none]))
+
+\\ ---- T2.2: ∫Log[x] and ∫x^n Log[x] via by-parts (u=Log, dv=x^n dx) ----------
+\\   ∫x^n Log[x] dx = x^(n+1)/(n+1) Log[x] - x^(n+1)/(n+1)^2   (n numeric, n != -1)
+(define integrate-log-parts
+  Integrand V -> (if (ilog-log-of-var? V Integrand)
+                     (ilog-emit V [int 0])
+                     (ilog-on-form Integrand V)))
+
+(define ilog-log-of-var?
+  V [[sym S] Arg] -> (if (= (str S) "Log") (content-eq Arg V) false)
+  V _ -> false)
+
+(define ilog-on-form
+  [[sym S] | Factors] V -> (ilog-on-times (str S) Factors V)
+  _ _ -> [none])
+
+(define ilog-on-times
+  "Times" Factors V -> (ilog-find-log Factors V [])
+  _ _ _ -> [none])
+
+\\ find the unique Log[V] factor; the rest must be exactly V (n=1) or Power[V,n].
+(define ilog-find-log
+  [] _ _ -> [none]
+  [F | Fs] V Seen -> (if (ilog-log-of-var? V F)
+                         (ilog-rest-exp (append (reverse Seen) Fs) V)
+                         (ilog-find-log Fs V [F | Seen])))
+
+(define ilog-rest-exp
+  [F] V -> (ilog-rest-exp-1 F V)
+  _ _ -> [none])
+
+(define ilog-rest-exp-1
+  [[sym S] B E] V -> (ilog-rest-power (str S) B E V)
+  F V -> (if (content-eq F V) (ilog-emit V [int 1]) [none]))
+
+(define ilog-rest-power
+  "Power" B E V -> (if (content-eq B V)
+                       (if (number-expr? E) (ilog-emit V E) [none])
+                       [none])
+  _ _ _ _ -> [none])
+
+\\ canonical integrand for exponent N: n=0 -> Log[V]; else V^n Log[V].
+(define ilog-integrand
+  V [int 0] -> [[sym (protect Log)] V]
+  V N -> [(ct-times) [(ct-power) V N] [[sym (protect Log)] V]])
+
+(define ilog-emit
+  V N -> (ilog-build V N (num-add N [int 1])))
+
+(define ilog-build
+  V N NP1 -> (if (num-eq? NP1 [int 0])
+                 [none]
+                 (let R [(ct-plus)
+                          [(ct-times) (num-div [int 1] NP1) [(ct-power) V NP1] [[sym (protect Log)] V]]
+                          [(ct-times) [int -1] (num-div [int 1] (num-mul NP1 NP1)) [(ct-power) V NP1]]]
+                      (if (integ-diffback-ok? R (ilog-integrand V N) V) [some R] [none]))))
+
+\\ ---- T3.3: cyclic by-parts closed forms for Exp[x]*{Sin[x]|Cos[x]} ----------
+\\   ∫Exp[x] Sin[x] dx = (1/2) Exp[x] (Sin[x] - Cos[x])
+\\   ∫Exp[x] Cos[x] dx = (1/2) Exp[x] (Sin[x] + Cos[x])
+\\ Order-robust: tries both factor assignments (Times is Orderless).
+(define integrate-cyclic
+  [[sym S] A B] V -> (icyc-times (str S) A B V)
+  _ _ -> [none])
+
+(define icyc-times
+  "Times" A B V -> (icyc-pair A B V)
+  _ _ _ _ -> [none])
+
+(define icyc-pair
+  A B V -> (if (icyc-exp? A V)
+               (icyc-emit (icyc-trig-name B V) V B)
+               (if (icyc-exp? B V)
+                   (icyc-emit (icyc-trig-name A V) V A)
+                   [none])))
+
+(define icyc-exp?
+  [[sym S] Arg] V -> (if (= (str S) "Exp") (content-eq Arg V) false)
+  _ _ -> false)
+
+(define icyc-trig-name
+  [[sym S] Arg] V -> (icyc-trig-name-2 (str S) Arg V)
+  _ _ -> "")
+
+(define icyc-trig-name-2
+  "Sin" Arg V -> (if (content-eq Arg V) "Sin" "")
+  "Cos" Arg V -> (if (content-eq Arg V) "Cos" "")
+  _ _ _ -> "")
+
+(define icyc-emit
+  "Sin" V Trig -> (icyc-gate [(ct-times) [rat 1 2] [[sym (protect Exp)] V]
+                               [(ct-plus) [[sym (protect Sin)] V]
+                                          [(ct-times) [int -1] [[sym (protect Cos)] V]]]]
+                             [(ct-times) [[sym (protect Exp)] V] Trig] V)
+  "Cos" V Trig -> (icyc-gate [(ct-times) [rat 1 2] [[sym (protect Exp)] V]
+                               [(ct-plus) [[sym (protect Sin)] V] [[sym (protect Cos)] V]]]
+                             [(ct-times) [[sym (protect Exp)] V] Trig] V)
+  _ _ _ -> [none])
+
+(define icyc-gate
+  R Integrand V -> (if (integ-diffback-ok? R Integrand V) [some R] [none]))
+
+\\ ---- T3.2: trig-power integrals over the bare variable -----------------------
+\\   ∫Cos[x]^2 dx = x/2 + Sin[x]Cos[x]/2
+\\   ∫Sin[x]^2 dx = x/2 - Sin[x]Cos[x]/2     (both close via the Pythagorean fold)
+\\   ∫Sec[x]^2 dx = Tan[x]                    (closes directly via D[Tan]=Sec^2)
+(define integrate-trigpow
+  [[sym P] [[sym F] Arg] E] V -> (itp-power (str P) (str F) Arg E V)
+  _ _ -> [none])
+
+(define itp-power
+  "Power" F Arg E V -> (if (content-eq Arg V)
+                          (if (number-expr? E)
+                              (if (num-eq? E [int 2]) (itp-emit F V) [none])
+                              [none])
+                          [none])
+  _ _ _ _ _ -> [none])
+
+(define itp-emit
+  "Cos" V -> (itp-gate (itp-half-plus V [int 1]) [(ct-power) [[sym (protect Cos)] V] [int 2]] V)
+  "Sin" V -> (itp-gate (itp-half-plus V [int -1]) [(ct-power) [[sym (protect Sin)] V] [int 2]] V)
+  "Sec" V -> (itp-gate [[sym (protect Tan)] V] [(ct-power) [[sym (protect Sec)] V] [int 2]] V)
+  _ _ -> [none])
+
+\\ x/2 + S*(Sin[x] Cos[x])/2 ; S = +1 (Cos^2) or -1 (Sin^2).
+(define itp-half-plus
+  V S -> [(ct-plus)
+           [(ct-times) [rat 1 2] V]
+           [(ct-times) [rat 1 2] S [[sym (protect Sin)] V] [[sym (protect Cos)] V]]])
+
+(define itp-gate
+  R Integrand V -> (if (integ-diffback-ok? R Integrand V) [some R] [none]))
 
 (output "calc-helpers.shen loaded (SameQ/UnsameQ/FreeQ/NumberQ/Positive/And/Simplify + free-of? + collect-like-terms + integrate-by-parts).~%")

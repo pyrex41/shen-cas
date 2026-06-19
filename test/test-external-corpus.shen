@@ -216,11 +216,14 @@
       [
         (external-case (protect rubi) (protect integrate) (protect inert) "fresnel-shape" "Sin[x^2]" "")
         (external-case (protect rubi) (protect integrate) (protect inert) "unknown-function" "ExtUnknown[x]" "")
-        (external-case (protect rubi) (protect integrate) (protect inert) "sin-squared" "Sin[x]^2" "")
         (external-case (protect rubi) (protect integrate) (protect inert) "exp-quadratic" "Exp[x^2]" "")
-        (external-case (protect rubi) (protect integrate) (protect inert) "log" "Log[x]" "")
         (external-case (protect rubi) (protect integrate) (protect inert) "tan" "Tan[x]" "")
-        (external-case (protect rubi) (protect integrate) (protect inert) "x-log-x" "x*Log[x]" "")
+      ])
+    \\ T2.2: ∫Log[x], ∫x^n Log[x] via by-parts (integrate-log-parts), diff-back verified.
+    (external-case-group "Rubi/integrate-log"
+      [
+        (external-case (protect rubi) (protect integrate) (protect pass) "log" "Log[x]" "")
+        (external-case (protect rubi) (protect integrate) (protect pass) "x-log-x" "x*Log[x]" "")
       ])
     \\ Linear-argument u-substitution (wired integrate-linear-usub), diff-back verified.
     (external-case-group "Rubi/integrate-linear-usub"
@@ -233,13 +236,16 @@
     (external-case-group "Rubi/integrate-trig"
       [
         (external-case (protect rubi) (protect integrate) (protect unsupported) "sin-cubed" "Sin[x]^3" "")
-        (external-case (protect rubi) (protect integrate) (protect unsupported) "cos-squared" "Cos[x]^2" "")
-        (external-case (protect rubi) (protect integrate) (protect unsupported) "sec-squared" "Sec[x]^2" "")
+        \\ T3.2: ∫Cos^2/∫Sin^2 (Pythagorean-fold-gated), ∫Sec^2=Tan (direct). diff-back verified.
+        (external-case (protect rubi) (protect integrate) (protect pass) "cos-squared" "Cos[x]^2" "")
+        (external-case (protect rubi) (protect integrate) (protect pass) "sin-squared" "Sin[x]^2" "")
+        (external-case (protect rubi) (protect integrate) (protect pass) "sec-squared" "Sec[x]^2" "")
         (external-case (protect rubi) (protect integrate) (protect unsupported) "tan-squared" "Tan[x]^2" "")
         (external-case (protect rubi) (protect integrate) (protect unsupported) "sin-linear-power" "Sin[2*x+1]^2" "")
         (external-case (protect rubi) (protect integrate) (protect unsupported) "sin-cos-product" "Sin[x]*Cos[x]" "")
-        (external-case (protect rubi) (protect integrate) (protect unsupported) "exp-sin-product" "Exp[x]*Sin[x]" "")
-        (external-case (protect rubi) (protect integrate) (protect unsupported) "exp-cos-product" "Exp[x]*Cos[x]" "")
+        \\ T3.3: ∫Exp[x] Sin[x], ∫Exp[x] Cos[x] (cyclic by-parts closed form). diff-back verified.
+        (external-case (protect rubi) (protect integrate) (protect pass) "exp-sin-product" "Exp[x]*Sin[x]" "")
+        (external-case (protect rubi) (protect integrate) (protect pass) "exp-cos-product" "Exp[x]*Cos[x]" "")
       ])
     (external-case-group "Rubi/integrate-rational"
       [
@@ -265,8 +271,9 @@
       ])
     (external-case-group "Rubi/integrate-inverse-trig"
       [
-        (external-case (protect rubi) (protect integrate) (protect unsupported) "inverse-trig-asin" "ArcSin[x]" "")
-        (external-case (protect rubi) (protect integrate) (protect unsupported) "inverse-trig-atan" "ArcTan[x]" "")
+        \\ T2.4: ∫ArcTan[x], ∫ArcSin[x] via by-parts closed form (integrate-invfun). diff-back verified.
+        (external-case (protect rubi) (protect integrate) (protect pass) "inverse-trig-asin" "ArcSin[x]" "")
+        (external-case (protect rubi) (protect integrate) (protect pass) "inverse-trig-atan" "ArcTan[x]" "")
         (external-case (protect rubi) (protect integrate) (protect unsupported) "x-atan" "x*ArcTan[x]" "")
       ])
     (external-case-group "Rubi/integrate-special"
@@ -361,15 +368,15 @@
     (external-case (protect sympy) (protect parser) (protect unsupported) "list-literal" "{x,y,z}" "")
     (external-case (protect sympy) (protect parser) (protect unsupported) "condition-expression" "x>0" "")
     \\ Simplify identities we do NOT implement: the kernel safely leaves them as-is.
-    (external-case (protect sympy) (protect simplify) (protect inert) "trig-pythagorean" "Simplify[Sin[x]^2+Cos[x]^2]" "")
+    (external-case (protect sympy) (protect simplify) (protect pass) "trig-pythagorean" "Simplify[Sin[x]^2+Cos[x]^2]" "1")
     (external-case (protect sympy) (protect simplify) (protect inert) "log-exp-cancel" "Simplify[Log[Exp[x]]]" "")
     (external-case (protect sympy) (protect simplify) (protect inert) "sqrt-square" "Simplify[Sqrt[x^2]]" "")
     \\ Integration we do NOT implement: declines safely (head stays Integrate).
-    (external-case (protect sympy) (protect integrate) (protect inert) "integrate-log" "Integrate[Log[x],x]" "")
+    (external-case (protect sympy) (protect integrate) (protect pass) "integrate-log" "Integrate[Log[x],x]" "x*Log[x]-x")
     (external-case (protect sympy) (protect integrate) (protect inert) "integrate-tan" "Integrate[Tan[x],x]" "")
     \\ Frontier: no head/concept yet (skipped; may not even parse).
     (external-case (protect sympy) (protect simplify) (protect unsupported) "abs-square" "Simplify[Abs[x]^2]" "")
-    (external-case (protect sympy) (protect limit) (protect unsupported) "limit-at-infinity" "Limit[1/x,x,Infinity]" "")
+    (external-case (protect sympy) (protect limit) (protect pass) "limit-at-infinity" "Limit[1/x,x,Infinity]" "0")
     (external-case (protect sympy) (protect matrix) (protect unsupported) "matrix-determinant" "Det[{{a,b},{c,d}}]" "")
     (external-case (protect sympy) (protect assumptions) (protect unsupported) "positive-sqrt-square" "Refine[Sqrt[x^2],x>0]" "")
     (external-case (protect sympy) (protect assumptions) (protect unsupported) "positive-log-exp" "Refine[Log[Exp[x]],x>0]" "")
