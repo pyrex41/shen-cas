@@ -2,11 +2,23 @@
 
 Date: 2026-06-18
 
-## Current State
+## Final State
 
-The repo is a Shen CAS kernel prototype: a Mathematica-inspired term rewriting system with content hashes, checked rules, structural attributes, sequence/AC matching, an immutable db skeleton, arithmetic/simplification, and early symbolic differentiation.
+The active branch is `cas-evaluator-buildout`.
 
-The current main tree loads and the test harness passes on `shen-go`.
+At the time this note was refreshed, the branch was clean and 13 commits ahead of `main`, with:
+
+- `aa3321e` - docs: mark evaluator buildout complete (SCUD 16-22 + P0 fixes)
+- `23cb26a` - [SCUD 22] Wave 6: executable rejection fixtures + calculus corpus showcase
+- `26dd034` - fix(P0): sound matcher + strict rule registration
+- `ceecf12` - [SCUD 21] Wave 5: bounded symbolic integration in `boot/calculus.shen`
+- `53c3b51` - [SCUD 20] Wave 4 symbolic differentiation
+- `efc272c` - [SCUD 19] Wave 3 simplify
+- `8166885` - [SCUD 17] fix saturating int64 arithmetic hang
+- `2248a62` - [SCUD 17] Wave 1 evaluator + sound matching + exact rationals
+- `5a63f09` - [SCUD 16] Wave 0 correctness gate
+
+The project loads cleanly with no redefinition noise on `shen-go`.
 
 Use this port:
 
@@ -36,133 +48,83 @@ Expected current result:
 
 - `Golden: 12/12 passed`
 - `ALL PASS`
+- No redefinition noise
 
-The harness also exercises SCUD 16-20 paths: evaluator sequence, exact rationals, sequence matching, AC matching, guards/predicates, simplification, and symbolic differentiation.
+## What Shipped
 
-## Work Completed In This Session
+All seven evaluator buildout waves landed on `cas-evaluator-buildout`.
 
-- Fixed `load.shen` runtime blockers on `shen-go`.
-- Standardized several higher-order uses to lambdas because this Shen port does not apply bare function names as values in those contexts.
-- Made the backend seam route by tag via `reduce-via` / `normal-form-via`, avoiding unsupported returned-function application.
-- Added a small compatibility `filter` helper in `src/db.shen`.
-- Reworked DB basis hashing to use recursive `basis-token` instead of `(str ...)` on pair/list objects.
-- Removed invalid `Flat` structural declaration from `Minus`.
-- Ensured arithmetic bootstrap is idempotent via `boot-declare-structural`.
-- Kept `match-ac.shen` and `match-seq.shen` loadable in the correct override order.
-- Verified the full harness with `shen-go`.
-- Reviewed the current work after later subagent progress and identified remaining correctness issues below.
+| Wave | SCUD | What shipped |
+| --- | --- | --- |
+| 0 - Correctness gate | 16 | Structural signature policy hardening, checked-rule de-duplication, real tag-dispatch backend seam, strict-and/load hygiene, control attributes stored in the db. |
+| 1 - Evaluator | 17 | Full ordered evaluation sequence, wired arithmetic (`Plus[7,8] -> 15`), exact rationals, sound sequence matching, sound AC matching, and deletion of old lookup-table arithmetic rules. |
+| 2 - Matcher prerequisites | 18 | `ptest`, condition tests that reduce before truth checking, and wired predicates `SameQ`, `UnsameQ`, `FreeQ`, `NumberQ`, and related helpers. |
+| 3 - Simplify | 19 | Identity, zero, and power simplification rules, `Simplify`/collect-like-terms, idempotence checks, and evaluator fuel caps. |
+| 4 - Differentiation | 20 | `D` rule library for linearity, product, quotient normalization, power, and chain rules over elementary functions. |
+| 5 - Integration | 21 | Bounded symbolic integration: exact table, linearity, u-substitution, depth-capped integration by parts, and inert behavior for unknown/out-of-scope forms. |
+| 6 - Corpora | 22 | Executable rejection fixtures and calculus showcase corpus. |
+
+## Thesis-Critical Fixes
+
+Two soundness bugs surfaced during review and are now fixed and verified in `26dd034`.
+
+### P0-1: repeated pattern variables
+
+Non-linear patterns now bind consistently:
+
+- `f[x_, x_]` matches `f[1,1]`.
+- `f[x_, x_]` does not match `f[1,2]`.
+- Orderless and sequence search backtrack on binding conflicts instead of accepting contradictory bindings.
+
+This fixes the earlier bug where a repeated binding could silently rewrite `Fdup[1,2]` to `1`.
+
+### P0-2: strict checked rules
+
+`checked-rule?` now rejects malformed rule shapes at registration time.
+
+The previously accepted bad form is now rejected:
+
+```shen
+[rule [int 1] [int 2]]
+```
+
+Rules must have a compound LHS and pass the checked-rule/binding coverage surface before they enter the db.
+
+## Additional Hardening
+
+- `8166885` fixed an arithmetic overflow hang: saturating int64 arithmetic now aborts before entering rational normalization/gcd paths that could hang.
+- Executable rejection fixtures now exist; they are no longer print-only placeholders.
+- The old review concern that `ALL PASS` could be vacuous is substantially addressed by live rejection, matcher, evaluator, simplification, differentiation, and integration corpus checks.
+- Session artifacts are cleaned/ignored; `git status` was clean before this handoff refresh.
 
 ## Important Files
 
 - `plan.md`: phased implementation plan.
 - `.scud/tasks/tasks.scg`: task graph and status.
 - `design.md`, `sketch.md`, `prologue+datalogue_decision.md`: design context.
-- `load.shen`: top-level loader, load order is significant.
-- `test/test.shen`: full harness, auto-runs on load.
-- `src/core.shen`: evaluator and backend seam.
+- `load.shen`: top-level loader; load order is significant.
+- `test/test.shen`: full harness; auto-runs on load.
+- `src/core.shen`: ordered evaluator, fuel guards, and backend seam.
 - `src/match.shen`, `src/match-seq.shen`, `src/match-ac.shen`: first-order, sequence, and AC matching.
-- `src/rule.shen`: rule construction/registration and binding coverage.
+- `src/rule.shen`: checked rule construction/registration and binding coverage.
 - `src/store.shen`: content hashing and structural signatures.
-- `src/db.shen`, `src/query.shen`, `src/warn.shen`: db and analysis layer.
-- `boot/arith.shen`, `boot/simplify.shen`, `boot/elemfun.shen`, `boot/calculus.shen`: bootstrap rule libraries.
+- `src/db.shen`, `src/query.shen`, `src/warn.shen`: db and analysis/warning layer.
+- `src/calc-helpers.shen`: wired predicates and `Simplify` helpers.
+- `src/num.shen`: exact integers/rationals and arithmetic overflow handling.
+- `boot/arith.shen`, `boot/simplify.shen`, `boot/elemfun.shen`, `boot/calculus.shen`: bootstrap CAS rule libraries.
 
-## Review Findings To Fix Next
+## Honest Caveat
 
-### P0: repeated pattern variables are unsound
+The differentiation and integration corpora are real and pass the current checks, including the differentiate-back style checks for the integration subset. The integration subsystem is intentionally bounded: it returns expressions inert/unevaluated outside the supported table, linearity, u-substitution, and depth-capped integration-by-parts patterns. For example, an unsupported form such as `Integrate[Sin[x^2], x]` should remain inert by design.
 
-`src/match.shen` currently allows conflicting repeated bindings.
+## Open Decision
 
-Observed probe:
+Everything is on `cas-evaluator-buildout`. It has not been merged into `main` or pushed by this note.
 
-```shen
-(match [[sym Fdup] (named x (blank)) (named x (blank))]
-       [[sym Fdup] [int 1] [int 2]])
-```
+Next decision:
 
-This returns a successful match with both `x -> 1` and `x -> 2`, and a rule like `Fdup[x_, x_] -> x` rewrites `Fdup[1,2]` to `1`.
+1. Merge `cas-evaluator-buildout` into `main`.
+2. Push `cas-evaluator-buildout` as a branch for review.
+3. Leave it on the branch for now.
 
-Fix: when matching `[named Name P]`, if `Name` is already bound, require `content-eq` between the old value and the new value. Otherwise return `match-none`.
-
-Add regression tests:
-
-- `f[x_, x_]` matches `f[1,1]`.
-- `f[x_, x_]` does not match `f[1,2]`.
-- Sequence bindings should obey the same repeated-name rule.
-
-### P0: malformed rules can enter the DB
-
-`checked-rule?` in `src/rule.shen` is only a tag/shape check:
-
-```shen
-(define checked-rule?
-  [rule Lhs Rhs] -> true
-  X -> false)
-```
-
-Observed probe:
-
-```shen
-(register-rule [rule [int 1] [int 2]])
-```
-
-This succeeds and increments the DB rule count.
-
-Fix: make `checked-rule?` validate:
-
-- LHS is a pattern.
-- RHS is an expr.
-- `bindings-cover?` is true.
-
-Or split the predicates into `rule-shape?` and strict `checked-rule?`.
-
-Add live rejection tests for malformed rules.
-
-### P1: structural signature policy drift
-
-Current tests intentionally allow hashing a compound before declaring the head `Flat`/`Orderless`, then declaring the structural attrs later. That contradicts the earlier invariant that structural attrs are immutable creation facts consulted before construction/hash.
-
-Choose and encode one policy:
-
-- Recommended: first construction/hash freezes an empty structural signature, and later structural declaration fails.
-- Alternative: require explicit symbol declaration before any construction/hash and reject undeclared structural heads.
-
-Update `test/test.shen` SCUD 16a accordingly.
-
-### P1: rejection tests are fixtures only
-
-`run-rejection-tests` currently prints fixture names and returns `true`. The green harness does not prove malformed patterns, seq-outside-arg, unbound RHS, or bad attrs are rejected by live code.
-
-Convert these to `trap-error` assertions against real constructors, `register-rule`, and reader paths.
-
-## Notes On Current Harness
-
-The harness is broad and useful, but a green `ALL PASS` currently does not prove the static-checking thesis because the rejection fixtures are not live and malformed rules can still register.
-
-Current known expected warning during passing run:
-
-- `bindings-cover? failed unbound: [y]` appears as an intentional negative fixture.
-- `WARNING: *max-eval-steps* exceeded...` appears in the loop termination test.
-- Int64 overflow warnings appear in rationals/overflow tests.
-
-## Git / Workspace Notes
-
-At last check, the main source tree showed no tracked diffs, but there were untracked artifacts:
-
-- `.claude/tracking/`
-- `.claude/workflows/`
-- `.worktrees/`
-- `SKELETON_REVIEW.md`
-- `SUBAGENT-ORCHESTRATION-PLAN.md`
-
-This `HANDOFF.md` is newly added and untracked.
-
-Do not assume `SKELETON_REVIEW.md` reflects the latest code; it was stale relative to the current green SCUD 16-20 harness.
-
-## Suggested Next Step
-
-Fix the two P0 issues first:
-
-1. Enforce repeated-name binding consistency in matcher/substitution.
-2. Make `checked-rule?` semantically strict and add live rejection tests.
-
-Then revisit the structural signature policy and convert rejection fixtures into executable tests.
+Do not merge or push without an explicit request.
