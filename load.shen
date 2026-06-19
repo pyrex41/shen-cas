@@ -27,6 +27,9 @@
 \\ SCUD 18 Wave C: univariate polynomial algebra (PolynomialGCD/Cancel/Together/
 \\ Factor); needs poly.shen + num.shen + calc-helpers' free-of?/free-symbols.
 (load "src/polyalg.shen")
+\\ SCUD 19 Wave D: solve polynomial equations in one var over Q (Solve / == reader);
+\\ needs polyalg's coeff-vector bridge + Factor, num.shen, calc-helpers' free-of?.
+(load "src/solve.shen")
 (load "src/core.shen")
 (load "src/scope.shen")
 (load "src/read.shen")
@@ -37,4 +40,5 @@
 (load "test/test-reader.shen")    \\ SCUD 16 Wave A: defines run-reader-printer-tests
 (load "test/test-poly.shen")      \\ SCUD 17 Wave B: defines run-poly-tests
 (load "test/test-polyalg.shen")   \\ SCUD 18 Wave C: defines run-polyalg-tests
+(load "test/test-solve.shen")     \\ SCUD 19 Wave D: defines run-solve-tests
 (load "test/test.shen")

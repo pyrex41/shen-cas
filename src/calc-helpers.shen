@@ -75,6 +75,11 @@
   "Cancel"        [E]   -> (cancel-builtin E)
   "Together"      [E]   -> (together-builtin E)
   "Factor"        [P]   -> (factor-builtin P)
+  \\ SCUD 19 Wave D: Solve polynomial equations in one variable over Q
+  \\ (src/solve.shen). Declines ([none]) -> the head stays inert -- when
+  \\ multivariate / symbolic-coefficient, the equation is identically zero, or a
+  \\ root fails the substitute-back soundness gate. SOUND > COMPLETE.
+  "Solve"         [E V] -> (solve-builtin E V)
   \\ SCUD 21: by-parts is consulted ONLY for the narrow product shape; it
   \\ declines ([none]) for everything else so the integration rule library and
   \\ the inert fall-through handle the rest. It runs before user rules but

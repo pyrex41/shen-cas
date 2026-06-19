@@ -23,6 +23,8 @@
       (protect Sin) (protect Cos) (protect Tan) (protect Sec)
       (protect Exp) (protect Log) (protect Sqrt)
       (protect ArcSin) (protect ArcCos) (protect ArcTan)
+      \\ SCUD 19 Wave D: Solve polynomial equations + the Equal head from '=='.
+      (protect Equal) (protect Solve)
       (protect Plus) (protect Times)])
 
 (define known-symbol?

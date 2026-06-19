@@ -10,11 +10,12 @@
   [sym _] -> 100
   [int _] -> 100
   [rat _ _] -> 100
-  E -> (if (op-headed? "Plus" E) 1
-           (if (op-headed? "Times" E) 2
-               (if (op-headed? "Divide" E) 2
-                   (if (op-headed? "Power" E) 3
-                       100)))))   \\ generic app head[..] binds tight
+  E -> (if (op-headed? "Equal" E) 0
+           (if (op-headed? "Plus" E) 1
+               (if (op-headed? "Times" E) 2
+                   (if (op-headed? "Divide" E) 2
+                       (if (op-headed? "Power" E) 3
+                           100))))))   \\ generic app head[..] binds tight
 
 \\ true if E is a compound headed by [sym Name] with >= 2 args (real infix shape)
 (define op-headed?
@@ -34,6 +35,7 @@
   \\ patterns (LHS / standalone)
   E -> (print-pattern E) where (or (named? E) (or (blank? E) (or (blank-seq? E) (blank-null-seq? E))))
   \\ infix operators (Plus renders subtraction; Times renders leading minus)
+  E -> (print-equal E) where (op-headed? "Equal" E)
   E -> (print-plus E) where (op-headed? "Plus" E)
   E -> (print-times E) where (op-headed? "Times" E)
   E -> (print-divide E) where (op-headed? "Divide" E)
@@ -95,6 +97,12 @@
   [int 1] Others -> [(times-head-sym) | Others]
   C Others -> [(times-head-sym) C | Others])
 (define times-head-sym -> [sym (intern "Times")])
+
+\\ Equal is binary, prec 0 (loosest).  L==R ; children (Plus and tighter) need no
+\\ parens since they all bind tighter than Equal.
+(define print-equal
+  [_ A B] -> (@s (paren-if 1 (expr-prec A) (print-expr A))
+                 (@s "==" (paren-if 1 (expr-prec B) (print-expr B)))))
 
 \\ Plus printed with subtraction: Plus[a, -b, ...] -> a-b-...
 (define print-plus

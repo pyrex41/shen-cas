@@ -53,6 +53,7 @@
                       ((= C "^") (tok R [pow | Acc]))
                       ((= C "/") (tok R [slash | Acc]))
                       ((= C ":") (tok-colon S Acc))
+                      ((= C "=") (tok-eq S Acc))
                       ((= C "_") (tok-blank S 0 Acc))
                       ((= C "-") (tok R [dash | Acc]))
                       ((digit? C) (tok-num S 0 Acc))
@@ -65,6 +66,13 @@
                 (if (and (not (= R "")) (= (pos R 0) "="))
                     (tok (tlstr R) [colon-eq | Acc])
                     (error "tokenize: bare ':' (expected :=)"))))
+
+\\ '==' -> eqeq (Equal operator) ; a bare single '=' is an error (SCUD 19 Wave D)
+(define tok-eq
+  S Acc -> (let R (tlstr S)
+                (if (and (not (= R "")) (= (pos R 0) "="))
+                    (tok (tlstr R) [eqeq | Acc])
+                    (error "tokenize: bare '=' (expected ==)"))))
 
 \\ '-' is always a 'dash' token; the parser decides unary (negation) vs binary
 \\ (subtraction). This keeps "x-1" = Plus[x,-1], not the wrong Times[x,-1].
@@ -117,15 +125,17 @@
 \\ --- Operator precedence (minimal) ---
 \\ ^ right 3, * left 2, + left 1
 (define prec
-  plus -> 1
-  dash -> 1
-  star -> 2
-  slash -> 2
-  pow -> 3
+  eqeq -> 1
+  plus -> 2
+  dash -> 2
+  star -> 3
+  slash -> 3
+  pow -> 4
   _ -> 0)
 
 (define left-assoc?
-  Op -> (or (= Op plus) (or (= Op dash) (or (= Op star) (= Op slash)))))  \\ ^ is right
+  Op -> (or (= Op eqeq)
+            (or (= Op plus) (or (= Op dash) (or (= Op star) (= Op slash))))))  \\ ^ is right
 
 \\ --- Expr parser (top level for algebra) ---
 \\ parse-expr-string : string -> expr  (routes via checked ctors)
@@ -177,6 +187,7 @@
   _ -> false)
 
 (define infix-op?
+  eqeq -> true
   plus -> true
   dash -> true
   star -> true
@@ -185,6 +196,7 @@
   _ -> false)
 
 (define make-infix-expr
+  eqeq L R -> (compound* (sym* "Equal") [L R])
   plus L R -> (compound* (sym* "Plus") [L R])
   dash L R -> (compound* (sym* "Plus") [L (negate R)])  \\ a - b == Plus[a, -b]
   star L R -> (compound* (sym* "Times") [L R])
@@ -223,7 +235,7 @@
 \\ Factor: unary minus | number | symbol | ( expr ) | app | implicit mult
 (define p-factor
   \\ unary minus binds at power precedence: -x^2 == -(x^2), -x*y == -(x*y)
-  [dash | Rest] -> (let Pair (p-expr Rest 3)
+  [dash | Rest] -> (let Pair (p-expr Rest 4)
                         V (hd Pair)
                         Rest2 (tl Pair)
                         [(negate V) | Rest2])

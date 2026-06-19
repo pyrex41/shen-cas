@@ -35,5 +35,12 @@
 (register-rule (rule [[sym (protect Log)] [int 1]] [int 0]))
 (register-rule (rule [[sym (protect Sqrt)] [int 0]] [int 0]))
 (register-rule (rule [[sym (protect Sqrt)] [int 1]] [int 1]))
+\\ Sqrt[u]^2 -> u : universally valid (Sqrt[u] is by definition a value whose square
+\\ is u). A general radical-square simplification. (Note: this alone does NOT make
+\\ Solve verify irrational quadratic roots -- the root SQUARED appears as
+\\ Power[Times[c,Sqrt[d]],2], which needs an Expand in the substitute-back gate to
+\\ reach this form; Solve still soundly declines those. See solve.shen caveats.)
+(register-rule (rule [[sym (protect Power)] [[sym (protect Sqrt)] [named (protect u) [blank]]] [int 2]]
+                     [sym (protect u)]))
 
 (output "boot/elemfun.shen loaded (elementary symbols + exact-value table).~%")
