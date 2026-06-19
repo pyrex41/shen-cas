@@ -188,9 +188,14 @@
 
 \\ 16b: the always-true checked-rule? is gone; a non-[rule ...] value is not a checked rule
 \\ regardless of load order.
+\\ P0-2: a registrable rule's LHS must be a SYMBOL-HEADED COMPOUND (the dispatcher
+\\ keys on a head symbol). Non-rule shapes, integer-atom LHS, and bare-symbol-atom
+\\ LHS are all rejected; a real symbol-headed compound rule is accepted.
 (define cg-16b-checked-rule-strict
   -> (let Ok (and (not (checked-rule? [(protect foo) (protect bar)]))
-                  (checked-rule? [rule [sym (protect x)] [sym (protect x)]]))
+                  (and (checked-rule? [rule [[sym (protect Plus)] [named (protect x) [blank]] [int 0]] [sym (protect x)]])
+                       (and (not (checked-rule? [rule [int 1] [int 2]]))
+                            (not (checked-rule? [rule [sym (protect x)] [sym (protect x)]])))))
           (do (output "16b: checked-rule? strict ~A~%" Ok) Ok)))
 
 \\ 16c: switching current-core to compiled routes reduce through the stub (identity here)

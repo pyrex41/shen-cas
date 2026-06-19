@@ -28,7 +28,7 @@
          (if (match-some? M)
              (let M2 (match-arg-list-positional PRest ERest)
                   (if (match-some? M2)
-                      (match-some (append (match-unwrap M) (match-unwrap M2)))
+                      (merge-bindings (match-unwrap M) (match-unwrap M2))
                       match-none))
              match-none))
   _ _ -> match-none)
@@ -83,7 +83,7 @@
          (if (match-some? M)
              (let Rest (seq-match PRest ERest)
                   (if (match-some? Rest)
-                      (match-some (append (match-unwrap M) (match-unwrap Rest)))
+                      (merge-bindings (match-unwrap M) (match-unwrap Rest))
                       match-none))
              match-none)))
 
@@ -113,7 +113,10 @@
   P PRest [[Front Back] | Rest] ->
     (let M (seq-match PRest Back)
          (if (match-some? M)
-             (match-some (append (seq-binding P Front) (match-unwrap M)))
+             (let Merged (merge-bindings (seq-binding P Front) (match-unwrap M))
+                  (if (match-some? Merged)
+                      Merged
+                      (seq-try-splits P PRest Rest)))
              (seq-try-splits P PRest Rest))))
 
 \\ Named seq binds Name -> [seqval | Front] (the consumed list, tagged so

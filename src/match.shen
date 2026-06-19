@@ -12,6 +12,36 @@
 (define match-unwrap
   [just X] -> X)
 
+\\ P0-1: repeated pattern variables must bind CONSISTENTLY. Combine two binding
+\\ lists, failing (match-none) if any shared name maps to unequal values, so e.g.
+\\ f[x_,x_] matches f[1,1] but NOT f[1,2]. Enforced at every binding-combination
+\\ point: the orderless/seq search backtracks for free since a conflicting combine
+\\ returns match-none and the caller tries the next permutation/split.
+(define merge-bindings
+  B1 B2 -> (if (bindings-compatible? B1 B2)
+               (match-some (append B1 B2))
+               match-none))
+
+(define bindings-compatible?
+  [] _ -> true
+  [[Name Val] | Rest] B2 -> (if (binding-conflicts? Name Val B2)
+                                false
+                                (bindings-compatible? Rest B2))
+  [_ | Rest] B2 -> (bindings-compatible? Rest B2))
+
+(define binding-conflicts?
+  Name Val B2 -> (let Hit (assoc Name B2)
+                      (if (assoc-hit? Hit)
+                          (not (binding-vals-equal? Val (hd (tl Hit))))
+                          false)))
+
+\\ seqval lists are not ordinary exprs (content-hash buckets them all to "other"),
+\\ so compare those structurally; ordinary expr values compare by content hash.
+(define binding-vals-equal?
+  V1 V2 -> (if (or (seqval? V1) (seqval? V2))
+               (= V1 V2)
+               (content-eq V1 V2)))
+
 (define match
   [blank] _ -> (match-some [])
   [blank H] [[sym H] | _] -> (match-some [])
@@ -46,7 +76,7 @@
          (if (match-some? HeadMatch)
              (let ArgMatch (match-arg-list PArgs EArgs)
                   (if (match-some? ArgMatch)
-                      (match-some (append (match-unwrap HeadMatch) (match-unwrap ArgMatch)))
+                      (merge-bindings (match-unwrap HeadMatch) (match-unwrap ArgMatch))
                       match-none))
              match-none)))
 
@@ -57,7 +87,7 @@
          (if (match-some? M)
              (let M2 (match-arg-list PRest ERest)
                   (if (match-some? M2)
-                      (match-some (append (match-unwrap M) (match-unwrap M2)))
+                      (merge-bindings (match-unwrap M) (match-unwrap M2))
                       match-none))
              match-none))
   _ _ -> match-none)

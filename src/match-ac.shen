@@ -119,7 +119,7 @@
                                (match-orderless EH PArgs FlatEArgs)
                                (match-arg-list PArgs FlatEArgs))
                   (if (match-some? ArgMatch)
-                      (match-some (append (match-unwrap HeadMatch) (match-unwrap ArgMatch)))
+                      (merge-bindings (match-unwrap HeadMatch) (match-unwrap ArgMatch))
                       match-none))
              match-none)))
 

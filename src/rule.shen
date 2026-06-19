@@ -88,8 +88,17 @@
                (error "register-rule: not a checked-rule or bindings not covered ~A" R))
            (error "register-rule: not a checked-rule or bindings not covered ~A" R)))
 
+\\ P0-2: shape check alone let malformed rules register (e.g. [rule [int 1] [int 2]],
+\\ whose LHS is an integer literal, not a dispatchable pattern). A registrable rule's
+\\ LHS must -- after peeling condition/ptest guards -- be a compound headed by a
+\\ [sym S] (so it has a real dispatch head). bindings-cover? is enforced separately
+\\ in register-rule and in the checked-rule datatype.
+(define valid-rule-lhs?
+  L -> (let P (lhs-dispatch-pattern L)
+            (and (cons? P) (sym? (hd P)))))
+
 (define checked-rule?
-  [rule Lhs Rhs] -> true
+  [rule Lhs Rhs] -> (valid-rule-lhs? Lhs)
   X -> false)
 
 (output "rule.shen loaded (checked-rule + bindings-cover).~%")
