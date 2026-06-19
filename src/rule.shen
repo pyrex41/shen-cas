@@ -25,6 +25,8 @@
       (protect ArcSin) (protect ArcCos) (protect ArcTan)
       \\ SCUD 19 Wave D: Solve polynomial equations + the Equal head from '=='.
       (protect Equal) (protect Solve)
+      \\ SCUD 20 Wave E: Taylor Series + Limit heads.
+      (protect Series) (protect Limit)
       (protect Plus) (protect Times)])
 
 (define known-symbol?

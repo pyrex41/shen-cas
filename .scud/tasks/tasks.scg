@@ -3,7 +3,7 @@
 
 @meta {
   name init
-  updated 2026-06-19T16:26:19Z
+  updated 2026-06-19T17:05:05Z
 }
 
 @nodes
@@ -47,7 +47,7 @@
 17 | Polynomial normal form: monomial ordering, expr<->poly over Q, PolynomialQ, Expand | D | 8 | H
 18 | Polynomial algebra: arithmetic, multivariate GCD, Together/Cancel, bounded Factor | D | 8 | H
 19 | Solve: linear + quadratic + factor-based polynomial roots over Q (== reader, root self-check) | D | 8 | H
-20 | Series (Taylor via iterated D) + Limit (subst/L'Hopital/series, inert when unknown) | P | 8 | H
+20 | Series (Taylor via iterated D) + Limit (subst/L'Hopital/series, inert when unknown) | D | 8 | H
 
 @edges
 # dependent -> dependency

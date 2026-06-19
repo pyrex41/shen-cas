@@ -675,7 +675,8 @@
                     (test-backend-seam) (test-correctness-gate) (test-eval-evaluator-wave1)
                     (test-simplify) (test-differentiation) (test-integration)
                     (run-calculus-tests) (run-reader-printer-tests)
-                    (run-poly-tests) (run-polyalg-tests) (run-solve-tests))
+                    (run-poly-tests) (run-polyalg-tests) (run-solve-tests)
+                    (run-series-tests))
             (do (if Ok (output "~%ALL PASS~%") (output "~%SOME FAIL~%")) Ok)))
 
 (define test-backend-seam

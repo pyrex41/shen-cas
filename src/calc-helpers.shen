@@ -85,6 +85,13 @@
   \\ the inert fall-through handle the rest. It runs before user rules but
   \\ ibp's whitelist guarantees it only ever fires on Times[poly, {Sin|Cos|Exp}].
   "Integrate" [Integrand V] -> (integrate-wired Integrand V)
+  \\ SCUD 20 Wave E: Taylor Series + Limit (src/series.shen). Series accepts the
+  \\ 3-arg (about 0) and 4-arg (about V0) forms; Limit is 3-arg. Each declines
+  \\ ([none]) -> the head stays inert when a coefficient cannot be evaluated to a
+  \\ number at the point, on int64 overflow, or when a limit is not justified by
+  \\ substitution / terminating L'Hopital. SOUND > COMPLETE.
+  "Series" Args -> (series-builtin Args)
+  "Limit"  Args -> (limit-builtin Args)
   _ _ -> [none])
 
 \\ SCUD 21 wired Integrate dispatch: position-independent constant-factor
