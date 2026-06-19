@@ -107,8 +107,37 @@
 (define integrate-after-pullout
   Integrand V -> (let U (integrate-linear-usub Integrand V)
                       (if (= U [none])
-                          (integrate-by-parts Integrand V)
+                          (integrate-after-usub Integrand V)
                           U)))
+
+(define integrate-after-usub
+  Integrand V -> (let T (integrate-table Integrand V)
+                      (if (= T [none])
+                          (integrate-by-parts Integrand V)
+                          T)))
+
+\\ Wired antiderivative table for forms a positional AC rule cannot match because
+\\ of the orderless canonical ordering of the inner Plus. Detection via expr->coeffs
+\\ (degree-indexed, order-independent). Differentiate-back verifies; declines -> [none].
+\\   Integrate[1/(1+x^2), x] -> ArcTan[x]   (denominator coeff vector == [1,0,1])
+(define integrate-table
+  [[sym S] Num Den] V -> (itable-divide (str S) Num Den V)
+  _ _ -> [none])
+
+(define itable-divide
+  "Divide" [int 1] Den V -> (itable-recip Den V (expr->coeffs V Den))
+  _ _ _ _ -> [none])
+
+(define itable-recip
+  Den V [some [B Z A]] -> (if (one-zero-one? B Z A)
+                              [some [[sym (protect ArcTan)] V]]
+                              [none])
+  Den V _ -> [none])
+
+(define one-zero-one?
+  B Z A -> (if (content-eq B [int 1])
+               (if (content-eq Z [int 0]) (content-eq A [int 1]) false)
+               false))
 
 \\ Linear-argument u-substitution for Sin/Cos/Exp: Integrate[g[a*x+b], x] where
 \\ the argument is linear in V. The linear coeffs are read off via polyalg's
@@ -194,15 +223,22 @@
 (define ct-times -> [sym (protect Times)])
 (define ct-power -> [sym (protect Power)])
 
-(define plus-head?  [sym S] -> (= (str S) "Plus")  _ -> false)
-(define times-head? [sym S] -> (= (str S) "Times") _ -> false)
-(define power-head? [sym S] -> (= (str S) "Power") _ -> false)
+(define plus-head?   [sym S] -> (= (str S) "Plus")   _ -> false)
+(define times-head?  [sym S] -> (= (str S) "Times")  _ -> false)
+(define power-head?  [sym S] -> (= (str S) "Power")  _ -> false)
+(define divide-head? [sym S] -> (= (str S) "Divide") _ -> false)
 
 \\ top-level dispatch: recurse into args, then collect at this node.
+\\ Divide[a,b] is normalized to Times[a, Power[b,-1]] FIRST so that a rational
+\\ written with the Divide head and the same quantity written as a negative power
+\\ collapse together -- this is what lets differentiate-back verify integrals
+\\ whose integrand is a Divide but whose D-image is a Power[.,-1] (e.g. ArcTan,
+\\ Log). Scoped to Simplify; the global evaluator/printer keep the Divide head.
 (define collect-like-terms
   [sym S] -> [sym S]
   [int N] -> [int N]
   [rat N D] -> [rat N D]
+  [H A B] -> (collect-like-terms [(ct-times) A [(ct-power) B [int -1]]]) where (divide-head? H)
   [H | Args] -> (collect-node H (map (/. A (collect-like-terms A)) Args))
   E -> E)
 

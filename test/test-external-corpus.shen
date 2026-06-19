@@ -186,7 +186,6 @@
     (external-case (protect rubi) (protect integrate) (protect inert) "unknown-function" "ExtUnknown[x]" "")
     (external-case (protect rubi) (protect integrate) (protect inert) "sin-squared" "Sin[x]^2" "")
     (external-case (protect rubi) (protect integrate) (protect inert) "exp-quadratic" "Exp[x^2]" "")
-    (external-case (protect rubi) (protect integrate) (protect inert) "rational-quadratic" "1/(1+x^2)" "")
     (external-case (protect rubi) (protect integrate) (protect inert) "log" "Log[x]" "")
     (external-case (protect rubi) (protect integrate) (protect inert) "tan" "Tan[x]" "")
     (external-case (protect rubi) (protect integrate) (protect inert) "x-log-x" "x*Log[x]" "")
@@ -203,7 +202,8 @@
     (external-case (protect rubi) (protect integrate) (protect unsupported) "sec-squared" "Sec[x]^2" "")
     (external-case (protect rubi) (protect integrate) (protect unsupported) "exp-sin-product" "Exp[x]*Sin[x]" "")
     (external-case (protect rubi) (protect integrate) (protect unsupported) "exp-cos-product" "Exp[x]*Cos[x]" "")
-    (external-case (protect rubi) (protect integrate) (protect unsupported) "atan-shape" "1/(1+x^2)" "")
+    \\ 1/(1+x^2) -> ArcTan[x] (wired integrate-table; diff-back via Divide->Power in Simplify).
+    (external-case (protect rubi) (protect integrate) (protect pass) "atan-shape" "1/(1+x^2)" "")
     (external-case (protect rubi) (protect integrate) (protect unsupported) "rational-linear-over-quadratic" "x/(1+x^2)" "")
     (external-case (protect rubi) (protect integrate) (protect unsupported) "partial-fraction" "(x+1)/(x^2-1)" "")
     (external-case (protect rubi) (protect integrate) (protect unsupported) "inverse-sqrt-x" "1/Sqrt[x]" "")
