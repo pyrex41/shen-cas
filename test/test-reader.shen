@@ -72,6 +72,20 @@
           \\ division: a/b -> Divide[a,b]
           C12 (rt-case "divide" "a/b"
                        [[sym (intern "Divide")] [sym (intern "a")] [sym (intern "b")]])
+          \\ subtraction (binary minus): a - b == Plus[a, negate b]
+          C12a (rt-case "sub-int" "x-1"
+                        [[sym (intern "Plus")] [sym (intern "x")] [int -1]])
+          C12b (rt-case "sub-sym" "a-b"
+                        [[sym (intern "Plus")] [sym (intern "a")]
+                          [[sym (intern "Times")] [int -1] [sym (intern "b")]]])
+          \\ sign folds into a Times coefficient: x - 2y == Plus[x, Times[-2,y]]
+          C12c (rt-case "sub-coeff" "x-2*y"
+                        [[sym (intern "Plus")] [sym (intern "x")]
+                          [[sym (intern "Times")] [int -2] [sym (intern "y")]]])
+          \\ unary minus binds at power precedence: -x^2 == -(x^2)
+          C12d (rt-case "unary-pow" "-x^2"
+                        [[sym (intern "Times")] [int -1]
+                          [[sym (intern "Power")] [sym (intern "x")] [int 2]]])
           \\ patterns x_ / x__ / x___ (round-trip only; build via reader pattern ctors)
           C13 (rt-pat "blank" (named-pat (intern "x") (blank-pat)))
           C14 (rt-pat "blank-seq" (named-pat (intern "x") (blank-seq-pat)))
@@ -80,9 +94,10 @@
           R (parse-rule-string "f[x_]:=x+1")
           RegOk (trap-error (do (register-rule R) true) (/. E false))
           C16 RegOk
-          Ok (every (/. X X) [C1 C2 C3 C3b C3c C3d C4 C5 C6 C7 C8 C9 C10 C11 C12 C13 C14 C15 C16])
-          (do (output "16RT: int=~A neg=~A rat=~A rat-print=~A rat-norm=~A rat-int=~A sym=~A app=~A nested=~A prec1=~A prec2=~A pow=~A parens=~A imult=~A div=~A x_=~A x__=~A x___=~A rule-reg=~A~%"
-                      C1 C2 C3 C3b C3c C3d C4 C5 C6 C7 C8 C9 C10 C11 C12 C13 C14 C15 C16)
+          Ok (every (/. X X) [C1 C2 C3 C3b C3c C3d C4 C5 C6 C7 C8 C9 C10 C11 C12
+                              C12a C12b C12c C12d C13 C14 C15 C16])
+          (do (output "16RT: int=~A neg=~A rat=~A rat-print=~A rat-norm=~A rat-int=~A sym=~A app=~A nested=~A prec1=~A prec2=~A pow=~A parens=~A imult=~A div=~A sub-int=~A sub-sym=~A sub-coeff=~A unary-pow=~A x_=~A x__=~A x___=~A rule-reg=~A~%"
+                      C1 C2 C3 C3b C3c C3d C4 C5 C6 C7 C8 C9 C10 C11 C12 C12a C12b C12c C12d C13 C14 C15 C16)
               (if Ok (output "reader/printer (SCUD 16): PASS~%")
                   (output "reader/printer (SCUD 16): FAIL~%"))
               Ok)))

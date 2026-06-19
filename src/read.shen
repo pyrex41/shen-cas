@@ -54,7 +54,7 @@
                       ((= C "/") (tok R [slash | Acc]))
                       ((= C ":") (tok-colon S Acc))
                       ((= C "_") (tok-blank S 0 Acc))
-                      ((= C "-") (tok-minus S Acc))
+                      ((= C "-") (tok R [dash | Acc]))
                       ((digit? C) (tok-num S 0 Acc))
                       ((letter? C) (tok-id S "" Acc))
                       (true (error "tokenize: bad char ~A" C)))))
@@ -66,18 +66,8 @@
                     (tok (tlstr R) [colon-eq | Acc])
                     (error "tokenize: bare ':' (expected :=)"))))
 
-\\ leading '-' : negative number if followed by a digit, else error (no unary on symbols)
-(define tok-minus
-  S Acc -> (let R (tlstr S)
-                (if (and (not (= R "")) (digit? (pos R 0)))
-                    (tok-num-neg R 0 Acc)
-                    (error "tokenize: stray '-'"))))
-
-(define tok-num-neg
-  S N Acc -> (if (or (= S "") (not (digit? (pos S 0))))
-                 (tok S [[num (* -1 N)] | Acc])
-                 (tok-num-neg (tlstr S) (+ (* N 10) (- (string->n (pos S 0)) 48)) Acc)))
-
+\\ '-' is always a 'dash' token; the parser decides unary (negation) vs binary
+\\ (subtraction). This keeps "x-1" = Plus[x,-1], not the wrong Times[x,-1].
 (define tok-num
   S N Acc -> (if (or (= S "") (not (digit? (pos S 0))))
                  (tok S [[num N] | Acc])
@@ -128,13 +118,14 @@
 \\ ^ right 3, * left 2, + left 1
 (define prec
   plus -> 1
+  dash -> 1
   star -> 2
   slash -> 2
   pow -> 3
   _ -> 0)
 
 (define left-assoc?
-  Op -> (or (= Op plus) (or (= Op star) (= Op slash))))  \\ ^ is right
+  Op -> (or (= Op plus) (or (= Op dash) (or (= Op star) (= Op slash)))))  \\ ^ is right
 
 \\ --- Expr parser (top level for algebra) ---
 \\ parse-expr-string : string -> expr  (routes via checked ctors)
@@ -187,6 +178,7 @@
 
 (define infix-op?
   plus -> true
+  dash -> true
   star -> true
   slash -> true
   pow -> true
@@ -194,10 +186,33 @@
 
 (define make-infix-expr
   plus L R -> (compound* (sym* "Plus") [L R])
+  dash L R -> (compound* (sym* "Plus") [L (negate R)])  \\ a - b == Plus[a, -b]
   star L R -> (compound* (sym* "Times") [L R])
   slash L R -> (slash-expr L R)
   pow L R -> (compound* (sym* "Power") [L R])
   _ L R -> (error "bad infix"))
+
+\\ negate (multiply by -1): fold numeric literals; fold sign into a Times' leading
+\\ numeric coefficient (x-2y -> Plus[x,Times[-2,y]], canonical); else prepend -1.
+\\ Mutual inverse of print.shen's pos-of so subtraction round-trips.
+(define negate
+  [int N] -> (int* (* -1 N))
+  [rat N D] -> (make-rat (* -1 N) D)
+  V -> (negate-compound V))
+
+(define negate-compound
+  V -> (if (times-headed? V)
+           (negate-times V)
+           (compound* (sym* "Times") [(int* -1) V])))
+
+(define times-headed?
+  [H | _] -> (if (sym? H) (= (sym-name H) (intern "Times")) false)
+  _ -> false)
+
+(define negate-times
+  [H C | Rest] -> (if (numeric? C)
+                      (compound* H [(negate C) | Rest])
+                      (compound* H [(int* -1) C | Rest])))
 
 \\ A numeric-literal quotient N/D is a rational literal (round-trippable with the
 \\ printer's [rat N D] case); a symbolic quotient stays a Divide compound.
@@ -205,8 +220,13 @@
   [int N] [int D] -> (make-rat N D)
   L R -> (compound* (sym* "Divide") [L R]))
 
-\\ Factor: number | symbol | ( expr ) | app | implicit mult
+\\ Factor: unary minus | number | symbol | ( expr ) | app | implicit mult
 (define p-factor
+  \\ unary minus binds at power precedence: -x^2 == -(x^2), -x*y == -(x*y)
+  [dash | Rest] -> (let Pair (p-expr Rest 3)
+                        V (hd Pair)
+                        Rest2 (tl Pair)
+                        [(negate V) | Rest2])
   [[num N] | Rest] -> [(int* N) | Rest]
   [[id Name] | [lbrack | Rest]] ->
     (let PairA (p-arglist Rest)

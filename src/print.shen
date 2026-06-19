@@ -33,9 +33,9 @@
   [sym S] -> (str S)
   \\ patterns (LHS / standalone)
   E -> (print-pattern E) where (or (named? E) (or (blank? E) (or (blank-seq? E) (blank-null-seq? E))))
-  \\ infix operators
-  E -> (print-infix "+" 1 1 2 E) where (op-headed? "Plus" E)
-  E -> (print-infix "*" 2 2 3 E) where (op-headed? "Times" E)
+  \\ infix operators (Plus renders subtraction; Times renders leading minus)
+  E -> (print-plus E) where (op-headed? "Plus" E)
+  E -> (print-times E) where (op-headed? "Times" E)
   E -> (print-divide E) where (op-headed? "Divide" E)
   E -> (print-power E) where (op-headed? "Power" E)
   \\ generic application head[a,b,...]
@@ -52,6 +52,79 @@
   Op Prec LeftNeed RightNeed [A | Rest] ->
     (@s (paren-if LeftNeed (expr-prec A) (print-expr A))
         (@s Op (join-infix Op Prec RightNeed RightNeed Rest))))
+
+\\ --- signed printing (mutual inverse of read.shen negate) ---
+\\ The numeric coefficient of a Times can sit at ANY position (Orderless hash-sort),
+\\ so we extract it for display: coeff first, with sign, then the other factors.
+(define numeric-neg?
+  [int N] -> (< N 0)
+  [rat N _] -> (< N 0)
+  _ -> false)
+
+(define times-coeff
+  [_ | Args] -> (find-coeff Args))
+(define find-coeff
+  [] -> [int 1]
+  [A | Rest] -> (if (numeric? A) A (find-coeff Rest)))
+
+(define times-others
+  [_ | Args] -> (drop-first-numeric Args))
+(define drop-first-numeric
+  [] -> []
+  [A | Rest] -> (if (numeric? A) Rest [A | (drop-first-numeric Rest)]))
+
+(define negate-num
+  [int N] -> [int (* -1 N)]
+  [rat N D] -> [rat (* -1 N) D])
+
+\\ a term is "negative" if it is a negative number or a Times whose coefficient is negative
+(define neg-coeff?
+  [int N] -> (< N 0)
+  [rat N _] -> (< N 0)
+  E -> (if (op-headed? "Times" E) (numeric-neg? (times-coeff E)) false))
+
+\\ positive version of a negative term (so "-" + pos-of(T) reparses to T)
+(define pos-of
+  [int N] -> [int (* -1 N)]
+  [rat N D] -> [rat (* -1 N) D]
+  E -> (rebuild-times (negate-num (times-coeff E)) (times-others E)))
+
+\\ build a Times with the coefficient first; drop a unit coefficient
+(define rebuild-times
+  [int 1] [F] -> F
+  [int 1] Others -> [(times-head-sym) | Others]
+  C Others -> [(times-head-sym) C | Others])
+(define times-head-sym -> [sym (intern "Times")])
+
+\\ Plus printed with subtraction: Plus[a, -b, ...] -> a-b-...
+(define print-plus
+  [_ | Args] -> (pp-terms Args true))
+(define pp-terms
+  [] _ -> ""
+  [A | Rest] First ->
+    (let Neg (neg-coeff? A)
+         Body (if Neg (print-addend (pos-of A)) (print-addend A))
+         Sign (if First (if Neg "-" "") (if Neg "-" "+"))
+         (@s Sign (@s Body (pp-terms Rest false)))))
+
+\\ an addend needs parens only if it is itself a Plus (prec < 2)
+(define print-addend
+  A -> (paren-if 2 (expr-prec A) (print-expr A)))
+
+\\ Times: coefficient first (with sign), then the other factors joined by '*'
+(define print-times
+  E -> (let C (times-coeff E)
+            Others (times-others E)
+            (if (numeric-neg? C)
+                (@s "-" (print-times-body (negate-num C) Others))
+                (print-times-body C Others))))
+(define print-times-body
+  [int 1] Others -> (print-product Others)
+  C Others -> (@s (print-expr C) (@s "*" (print-product Others))))
+(define print-product
+  [] -> ""
+  [F] -> (paren-if 3 (expr-prec F) (print-expr F))
+  [F | Rest] -> (@s (paren-if 3 (expr-prec F) (print-expr F)) (@s "*" (print-product Rest))))
 
 \\ Divide is binary, left-assoc, prec 2.  a/b
 (define print-divide
