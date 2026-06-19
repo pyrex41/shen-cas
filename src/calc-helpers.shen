@@ -145,8 +145,26 @@
 (define integrate-after-cyclic
   Integrand V -> (let P (integrate-trigpow Integrand V)
                       (if (= P [none])
-                          (integrate-by-parts Integrand V)
+                          (integrate-after-trigpow Integrand V)
                           P)))
+
+(define integrate-after-trigpow
+  Integrand V -> (let S (integrate-sincos Integrand V)
+                      (if (= S [none])
+                          (integrate-after-sincos Integrand V)
+                          S)))
+
+(define integrate-after-sincos
+  Integrand V -> (let P (integrate-powusub Integrand V)
+                      (if (= P [none])
+                          (integrate-after-powusub Integrand V)
+                          P)))
+
+(define integrate-after-powusub
+  Integrand V -> (let A (integrate-arcsin Integrand V)
+                      (if (= A [none])
+                          (integrate-by-parts Integrand V)
+                          A)))
 
 \\ Wired antiderivative table for forms a positional AC rule cannot match because
 \\ of the orderless canonical ordering of the inner Plus. Detection via expr->coeffs
@@ -310,8 +328,26 @@
   [int N] -> [int N]
   [rat N D] -> [rat N D]
   [H A B] -> (collect-like-terms [(ct-times) A [(ct-power) B [int -1]]]) where (divide-head? H)
+  [H [HB B IE] E] -> (collect-like-terms [(ct-power) B (num-mul IE E)]) where (nested-power? H HB IE E)
   [H | Args] -> (collect-node H (map (/. A (collect-like-terms A)) Args))
   E -> E)
+
+\\ Power[Power[b,p],q] -> Power[b,p*q] ONLY when the INNER exponent p is a non-
+\\ integer rational (e.g. 1/2). Then b^p already presumes the principal-root domain
+\\ b>=0, so (b^p)^q = b^(p*q) is exact. This folds (x^(1/2))^-1 -> x^(-1/2) so the
+\\ differentiate-back of ∫1/Sqrt[x] and ∫1/Sqrt[1-x^2] closes. It deliberately does
+\\ NOT fire for an integer inner exponent: (x^2)^(1/2) = |x| is branch-unsafe and
+\\ must stay inert. Outer exponent q may be any numeric literal.
+(define nested-power?
+  H HB IE E -> (if (power-head? H)
+                   (if (power-head? HB)
+                       (if (rat-expr? IE) (number-expr? E) false)
+                       false)
+                   false))
+
+(define rat-expr?
+  [rat N D] -> (and (number? N) (number? D))
+  _ -> false)
 
 (define collect-node
   H Args -> (if (plus-head? H)
@@ -891,5 +927,105 @@
 
 (define itp-gate
   R Integrand V -> (if (integ-diffback-ok? R Integrand V) [some R] [none]))
+
+(define ct-divide -> [sym (protect Divide)])
+
+\\ ---- sin-cos product: ∫Sin[x]Cos[x] dx = (1/2)Sin[x]^2 (order-robust) --------
+(define integrate-sincos
+  [[sym S] A B] V -> (isc-times (str S) A B V)
+  _ _ -> [none])
+
+(define isc-times
+  "Times" A B V -> (isc-pair A B V)
+  _ _ _ _ -> [none])
+
+(define isc-pair
+  A B V -> (if (isc-is? "Sin" A V)
+               (if (isc-is? "Cos" B V) (isc-emit V) [none])
+               (if (isc-is? "Cos" A V)
+                   (if (isc-is? "Sin" B V) (isc-emit V) [none])
+                   [none])))
+
+(define isc-is?
+  Name [[sym S] Arg] V -> (if (= (str S) Name) (content-eq Arg V) false)
+  Name _ _ -> false)
+
+(define isc-emit
+  V -> (let R [(ct-times) [rat 1 2] [(ct-power) [[sym (protect Sin)] V] [int 2]]]
+            F [(ct-times) [[sym (protect Sin)] V] [[sym (protect Cos)] V]]
+            (if (integ-diffback-ok? R F V) [some R] [none])))
+
+\\ ---- power of a linear arg: ∫(a x+b)^n dx = (a x+b)^(n+1)/(a(n+1)), n != -1 ---
+\\ Also the reciprocal-radical form Divide[1, Power[a x+b, n]] (= exponent -n), so
+\\ ∫1/Sqrt[x] = 2 Sqrt[x] and ∫Sqrt[1+x] = (2/3)(1+x)^(3/2). Self-gated; the
+\\ reciprocal/radical diff-back closes via the nested-power flatten in Simplify.
+(define integrate-powusub
+  [[sym S] A B] V -> (ipow-by-head (str S) A B [[sym S] A B] V)
+  _ _ -> [none])
+
+(define ipow-by-head
+  "Power"  Arg E Integrand V -> (if (number-expr? E)
+                                    (ipow-on (expr->coeffs V Arg) E Arg Integrand V)
+                                    [none])
+  "Divide" Num Den Integrand V -> (ipow-div Num Den Integrand V)
+  _ _ _ _ _ -> [none])
+
+(define ipow-div
+  [int 1] [[sym S] Arg E] Integrand V -> (ipow-div-2 (str S) Arg E Integrand V)
+  _ _ _ _ -> [none])
+
+(define ipow-div-2
+  "Power" Arg E Integrand V -> (if (number-expr? E)
+                                  (ipow-on (expr->coeffs V Arg) (num-mul [int -1] E) Arg Integrand V)
+                                  [none])
+  _ _ _ _ _ -> [none])
+
+\\ degree-1 arg only: coeff vector [b a], a = leading (nonzero).
+(define ipow-on
+  [some [B A]] E Arg Integrand V -> (ipow-emit A E Arg Integrand V)
+  _ _ _ _ _ -> [none])
+
+(define ipow-emit
+  A E Arg Integrand V -> (ipow-np1 A (num-add E [int 1]) Arg Integrand V))
+
+(define ipow-np1
+  A NP1 Arg Integrand V -> (if (num-eq? NP1 [int 0])
+                              [none]
+                              (ipow-gate [(ct-times) (num-div [int 1] (num-mul A NP1)) [(ct-power) Arg NP1]]
+                                         Integrand V)))
+
+(define ipow-gate
+  R Integrand V -> (if (integ-diffback-ok? R Integrand V) [some R] [none]))
+
+\\ ---- ∫1/Sqrt[1-x^2] dx = ArcSin[x] (denominator coeff vector == [1,0,-1]) -----
+(define integrate-arcsin
+  [[sym S] Num Den] V -> (iasin-div (str S) Num Den V)
+  _ _ -> [none])
+
+(define iasin-div
+  "Divide" [int 1] Den V -> (iasin-den Den V)
+  _ _ _ _ -> [none])
+
+(define iasin-den
+  [[sym S] Arg E] V -> (iasin-sqrt (str S) Arg E V)
+  _ _ -> [none])
+
+(define iasin-sqrt
+  "Power" Arg [rat 1 2] V -> (iasin-on (expr->coeffs V Arg) Arg V)
+  _ _ _ _ -> [none])
+
+(define iasin-on
+  [some [B Z A]] Arg V -> (if (one-minus-xsq? B Z A) (iasin-gate Arg V) [none])
+  _ _ _ -> [none])
+
+(define one-minus-xsq?
+  B Z A -> (if (content-eq B [int 1])
+               (if (content-eq Z [int 0]) (content-eq A [int -1]) false)
+               false))
+
+(define iasin-gate
+  Arg V -> (let R [[sym (protect ArcSin)] V]
+                F [(ct-divide) [int 1] [(ct-power) Arg [rat 1 2]]]
+                (if (integ-diffback-ok? R F V) [some R] [none])))
 
 (output "calc-helpers.shen loaded (SameQ/UnsameQ/FreeQ/NumberQ/Positive/And/Simplify + free-of? + collect-like-terms + integrate-by-parts).~%")

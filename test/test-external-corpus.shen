@@ -242,7 +242,7 @@
         (external-case (protect rubi) (protect integrate) (protect pass) "sec-squared" "Sec[x]^2" "")
         (external-case (protect rubi) (protect integrate) (protect unsupported) "tan-squared" "Tan[x]^2" "")
         (external-case (protect rubi) (protect integrate) (protect unsupported) "sin-linear-power" "Sin[2*x+1]^2" "")
-        (external-case (protect rubi) (protect integrate) (protect unsupported) "sin-cos-product" "Sin[x]*Cos[x]" "")
+        (external-case (protect rubi) (protect integrate) (protect pass) "sin-cos-product" "Sin[x]*Cos[x]" "")
         \\ T3.3: ∫Exp[x] Sin[x], ∫Exp[x] Cos[x] (cyclic by-parts closed form). diff-back verified.
         (external-case (protect rubi) (protect integrate) (protect pass) "exp-sin-product" "Exp[x]*Sin[x]" "")
         (external-case (protect rubi) (protect integrate) (protect pass) "exp-cos-product" "Exp[x]*Cos[x]" "")
@@ -263,11 +263,11 @@
       [
         \\ Sqrt[x] normalizes to x^(1/2), then the power rule integrates it.
         (external-case (protect rubi) (protect integrate) (protect pass) "sqrt-x" "Sqrt[x]" "")
-        (external-case (protect rubi) (protect integrate) (protect unsupported) "inverse-sqrt-x" "1/Sqrt[x]" "")
-        (external-case (protect rubi) (protect integrate) (protect unsupported) "sqrt-linear" "Sqrt[1+x]" "")
+        (external-case (protect rubi) (protect integrate) (protect pass) "inverse-sqrt-x" "1/Sqrt[x]" "")
+        (external-case (protect rubi) (protect integrate) (protect pass) "sqrt-linear" "Sqrt[1+x]" "")
         (external-case (protect rubi) (protect integrate) (protect unsupported) "x-sqrt-linear" "x*Sqrt[1+x]" "")
         (external-case (protect rubi) (protect integrate) (protect unsupported) "sqrt-quadratic" "Sqrt[1+x^2]" "")
-        (external-case (protect rubi) (protect integrate) (protect unsupported) "inverse-sqrt-quadratic" "1/Sqrt[1-x^2]" "")
+        (external-case (protect rubi) (protect integrate) (protect pass) "inverse-sqrt-quadratic" "1/Sqrt[1-x^2]" "")
       ])
     (external-case-group "Rubi/integrate-inverse-trig"
       [
