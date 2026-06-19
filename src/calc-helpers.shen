@@ -67,6 +67,14 @@
   \\ SCUD 17 Wave B: polynomial normal form + PolynomialQ (src/poly.shen).
   "Expand"      [E]   -> [some (poly-expand E)]
   "PolynomialQ" [E V] -> [some (bool->expr (polynomial-q? E V))]
+  \\ SCUD 18 Wave C: univariate polynomial algebra over Q (src/polyalg.shen).
+  \\ Each declines ([none]) -> the head stays inert -- when multivariate, not a
+  \\ rational function, on int64 overflow, or if a self-check (divisibility /
+  \\ Expand round-trip) fails. SOUND > COMPLETE.
+  "PolynomialGCD" [A B] -> (poly-gcd-builtin A B)
+  "Cancel"        [E]   -> (cancel-builtin E)
+  "Together"      [E]   -> (together-builtin E)
+  "Factor"        [P]   -> (factor-builtin P)
   \\ SCUD 21: by-parts is consulted ONLY for the narrow product shape; it
   \\ declines ([none]) for everything else so the integration rule library and
   \\ the inert fall-through handle the rest. It runs before user rules but
