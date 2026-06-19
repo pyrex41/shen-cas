@@ -2,9 +2,12 @@
 
 A statically checked, Mathematica-inspired term-rewriting kernel in Shen.
 
-**Status:** Skeleton complete (content store, checked rules, immutable datom db, dispatch index,
-scoping, backend seam — SCUD 1–15). Currently being grown from a lookup-table skeleton into a genuine
-evaluator with symbolic differentiation and bounded integration (see *How this was built*).
+**Status:** Working evaluator. On top of the skeleton (content store, checked rules, immutable datom db,
+dispatch index, scoping, backend seam — SCUD 1–15), the kernel now has a genuine ordered evaluation
+sequence with wired arithmetic, exact rationals, sound sequence/AC matching, a simplifier, **symbolic
+differentiation**, and a **bounded symbolic integration** subset (SCUD 16–22, on the
+`cas-evaluator-buildout` branch). Rule registration is statically checked at definition time, and the
+rejection suite is executable. Harness: `Golden: 12/12 passed`, `ALL PASS`. See *How this was built*.
 
 See [plan.md](plan.md) for the full roadmap, phases, module layout, and verification strategy.
 
@@ -71,7 +74,11 @@ bottom. The stages, in order:
    evaluator, Orderless matching was inert, Flat flattening was silently broken, the backend seam was
    bypassed, and two correctness gates passed only by load-order luck). That review fed a new plan to
    fix the issues and grow the kernel into a real evaluator with symbolic differentiation and a bounded
-   integration subset. The plan is being executed by a **harness-gated, wave-by-wave workflow**: each
-   wave is implemented in dependency order, gated on the full test harness passing, then verified by a
+   integration subset. The plan was executed by a **harness-gated, wave-by-wave workflow** (SCUD 16–22):
+   each wave implemented in dependency order, gated on the full test harness passing, then verified by a
    parallel adversarial review fan-out (one reviewer on the hard invariants, one on acceptance + Shen
-   portability) before the next wave begins, on the `cas-evaluator-buildout` branch.
+   portability) before the next wave. The fan-out caught a post-fix arithmetic-overflow hang during Wave 1;
+   a follow-up pass then fixed two thesis-critical soundness bugs the buildout surfaced — non-linear
+   pattern variables (`f[x_,x_]` was matching `f[1,2]`) and lax rule registration (a non-symbol-headed
+   LHS could enter the db) — and made the definition-time rejection suite executable. All on the
+   `cas-evaluator-buildout` branch.
