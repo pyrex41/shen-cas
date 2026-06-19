@@ -123,6 +123,33 @@ counts the skipped frontier. Current coverage (run the full harness for live num
   `limits`, `parser`, `simplify-assumptions`, and
   `matrix-piecewise-special`.
 
+## Out Of Scope For Now
+
+These stay `unsupported` or deliberately inert until the project has the needed
+datatypes and semantics:
+
+- Matrices, `Det`, list literals using `{...}`, `Piecewise`, assumptions,
+  `Refine`, and comparison operators. The reader tokenizer currently has no
+  `{}`, `<`, or `>` support, and these require new internal forms rather than
+  simple corpus ungating.
+- Special functions such as `Erf`, `Gamma`, and `BesselJ`, plus their
+  derivative/integration tables.
+- Branch-unsafe identities such as `Log[Exp[x]] -> x` and `Sqrt[x^2] -> Abs[x]`.
+  The current corpus keeps these inert because they need an assumptions system
+  to be sound.
+- Definite integrals and extended-real endpoint reasoning beyond the existing
+  single limit-at-infinity support.
+
+## AC Matcher Note
+
+Linear-argument u-substitution originally stayed skipped because nested AC
+matching could choose a local permutation that later conflicted with an outer
+repeated variable. The matcher now keeps first-success behavior in general, but
+for small AC matches where a named blank can bind to its own symbol (for example
+`x_` matching symbol `x`), it scores successful local permutations and prefers
+that self-binding. This revives the rule-based u-substitution cases without
+turning common AC matches into exhaustive best-match searches.
+
 ## License Notes
 
 Permissive corpora such as Rubi, SymPy, and SymEngine can be vendored in curated
