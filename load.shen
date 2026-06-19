@@ -20,6 +20,10 @@
 \\ SCUD 18c: wired predicates (SameQ/UnsameQ/FreeQ/NumberQ) must load before
 \\ core so core's try-builtin hook can call calc-builtin.
 (load "src/calc-helpers.shen")
+\\ SCUD 17 Wave B: polynomial normal form (Expand/PolynomialQ); needs num + store
+\\ + calc-helpers' free-of?. calc-by-name only CALLS poly-expand/polynomial-q? at
+\\ runtime, so load order after calc-helpers (defs live by reduce time) suffices.
+(load "src/poly.shen")
 (load "src/core.shen")
 (load "src/scope.shen")
 (load "src/read.shen")
@@ -28,4 +32,5 @@
 (output "shen-cas loaded (skeleton). See plan.md and test.shen.~%")
 (load "test/test-calculus.shen")  \\ SCUD 22: defines run-calculus-tests (used by run-all-tests)
 (load "test/test-reader.shen")    \\ SCUD 16 Wave A: defines run-reader-printer-tests
+(load "test/test-poly.shen")      \\ SCUD 17 Wave B: defines run-poly-tests
 (load "test/test.shen")

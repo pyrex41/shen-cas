@@ -64,6 +64,9 @@
   "Positive" [E]   -> [some (bool->expr (positive-expr? E))]
   "And"      Args  -> [some (bool->expr (all-true? Args))]
   "Simplify" [E]   -> [some (collect-like-terms E)]
+  \\ SCUD 17 Wave B: polynomial normal form + PolynomialQ (src/poly.shen).
+  "Expand"      [E]   -> [some (poly-expand E)]
+  "PolynomialQ" [E V] -> [some (bool->expr (polynomial-q? E V))]
   \\ SCUD 21: by-parts is consulted ONLY for the narrow product shape; it
   \\ declines ([none]) for everything else so the integration rule library and
   \\ the inert fall-through handle the rest. It runs before user rules but
