@@ -676,7 +676,7 @@
                     (test-simplify) (test-differentiation) (test-integration)
                     (run-calculus-tests) (run-reader-printer-tests)
                     (run-poly-tests) (run-polyalg-tests) (run-solve-tests)
-                    (run-series-tests))
+                    (run-series-tests) (run-external-corpus-tests))
             (do (if Ok (output "~%ALL PASS~%") (output "~%SOME FAIL~%")) Ok)))
 
 (define test-backend-seam
