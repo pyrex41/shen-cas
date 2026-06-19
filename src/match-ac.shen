@@ -94,20 +94,73 @@
   X [Y | Ys] -> (if (= X Y) Ys (cons Y (ac-remove-first X Ys))))
 
 \\ Orderless matching: try every permutation of EArgs against PArgs (seq-aware via
-\\ match-arg-list from match-seq). Bounded by *ac-max-args*; first matching
-\\ permutation wins. Fires regardless of seq-var count.
+\\ match-arg-list from match-seq). Bounded by *ac-max-args*. Fires regardless of
+\\ seq-var count.
+\\
+\\ Important: do not blindly return the first local permutation. A nested AC match
+\\ can bind a repeated outer variable the "wrong" way before the enclosing match
+\\ gets to merge it, e.g. Times[a_,x_] against Times[x,2] may bind x_=2 and then
+\\ fail later against the Integrate[...,x_] variable. Among local successes,
+\\ prefer bindings where a name binds to the same symbol (x_ -> x) for binary
+\\ matches, preserving prior first-match behavior elsewhere.
 (define match-orderless
   Head PArgs EArgs ->
     (if (> (length EArgs) (value *ac-max-args*))
         (do (output "WARNING: AC permutation search skipped for ~A (>~A args)~%" Head (value *ac-max-args*))
             (match-arg-list PArgs EArgs))
-        (match-orderless-perms PArgs (ac-permutations EArgs))))
+        (let Perms (ac-permutations EArgs)
+             (if (needs-self-binding-score? PArgs EArgs)
+                 (match-orderless-best PArgs Perms match-none -1 (self-binding-candidate-count PArgs EArgs))
+                 (match-orderless-perms PArgs Perms)))))
 
 (define match-orderless-perms
   _ [] -> match-none
   PArgs [Perm | Rest] ->
     (let M (match-arg-list PArgs Perm)
          (if (match-some? M) M (match-orderless-perms PArgs Rest))))
+
+(define match-orderless-best
+  _ [] Best _ _ -> Best
+  PArgs [Perm | Rest] Best BestScore MaxScore ->
+    (let M (match-arg-list PArgs Perm)
+         (if (match-some? M)
+             (let Score (binding-list-score (match-unwrap M))
+                  (if (> Score BestScore)
+                      (if (= Score MaxScore)
+                          M
+                          (match-orderless-best PArgs Rest M Score MaxScore))
+                      (match-orderless-best PArgs Rest Best BestScore MaxScore)))
+             (match-orderless-best PArgs Rest Best BestScore MaxScore))))
+
+(define binding-list-score
+  [] -> 0
+  [[Name [sym Name]] | Rest] -> (+ 1 (binding-list-score Rest))
+  [_ | Rest] -> (binding-list-score Rest))
+
+(define needs-self-binding-score?
+  PArgs EArgs -> (and (<= (length EArgs) 2)
+                      (has-self-binding-candidate? PArgs EArgs)))
+
+(define has-self-binding-candidate?
+  [] _ -> false
+  [[named Name [blank]] | Rest] EArgs ->
+    (if (expr-list-contains-sym? Name EArgs)
+        true
+        (has-self-binding-candidate? Rest EArgs))
+  [_ | Rest] EArgs -> (has-self-binding-candidate? Rest EArgs))
+
+(define self-binding-candidate-count
+  [] _ -> 0
+  [[named Name [blank]] | Rest] EArgs ->
+    (if (expr-list-contains-sym? Name EArgs)
+        (+ 1 (self-binding-candidate-count Rest EArgs))
+        (self-binding-candidate-count Rest EArgs))
+  [_ | Rest] EArgs -> (self-binding-candidate-count Rest EArgs))
+
+(define expr-list-contains-sym?
+  _ [] -> false
+  Name [[sym Name] | _] -> true
+  Name [_ | Rest] -> (expr-list-contains-sym? Name Rest))
 
 (define match-compound
   PH PArgs EH EArgs ->

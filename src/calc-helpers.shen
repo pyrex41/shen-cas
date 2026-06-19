@@ -125,19 +125,58 @@
   _ _ -> [none])
 
 (define itable-divide
-  "Divide" [int 1] Den V -> (itable-recip Den V (expr->coeffs V Den))
+  "Divide" Num Den V -> (itable-on-divide Num Den V)
   _ _ _ _ -> [none])
+
+\\ 1/Den: ArcTan if Den == 1+x^2, else (1/a)Log[Den] if Den is linear.
+\\ Num/Den (general): c*Log[Den] when Num is a numeric multiple of Den' (u'/u form).
+(define itable-on-divide
+  [int 1] Den V -> (itable-recip Den V (expr->coeffs V Den))
+  Num Den V -> (itable-logderiv Num Den V))
 
 (define itable-recip
   Den V [some [B Z A]] -> (if (one-zero-one? B Z A)
                               [some [[sym (protect ArcTan)] V]]
                               [none])
+  Den V [some [B A]] -> [some [(ct-times) [(ct-power) A [int -1]] [[sym (protect Log)] Den]]]
   Den V _ -> [none])
 
 (define one-zero-one?
   B Z A -> (if (content-eq B [int 1])
                (if (content-eq Z [int 0]) (content-eq A [int 1]) false)
                false))
+
+\\ log-derivative: Integrate[Num/Den, x] -> c*Log[Den] when Num == c*Den' (c numeric).
+(define itable-logderiv
+  Num Den V -> (itable-logderiv-2 Num Den V (expr->coeffs V Num)
+                                  (expr->coeffs V (reduce [[sym (protect D)] Den V]))))
+
+(define itable-logderiv-2
+  Num Den V [some NV] [some DV] -> (itable-logderiv-3 Den (vec-ratio NV DV))
+  Num Den V _ _ -> [none])
+
+(define itable-logderiv-3
+  Den [some C] -> [some [(ct-times) C [[sym (protect Log)] Den]]]
+  Den _ -> [none])
+
+\\ vec-ratio NumV DpV -> [some c] if NumV == c*DpV elementwise (c numeric), else [none].
+\\ Trimmed coeff vectors have a nonzero leading entry, so same degree => same length.
+(define vec-ratio
+  NumV DpV -> (if (= (length NumV) (length DpV))
+                  (vr-check-ratio NumV DpV (num-div (vr-last NumV) (vr-last DpV)))
+                  [none]))
+
+(define vr-last
+  [X] -> X
+  [_ | Xs] -> (vr-last Xs))
+
+(define vr-check-ratio
+  NumV DpV C -> (if (vr-elementwise? NumV DpV C) [some C] [none]))
+
+(define vr-elementwise?
+  [] [] _ -> true
+  [N | Ns] [D | Ds] C -> (if (num-eq? N (num-mul C D)) (vr-elementwise? Ns Ds C) false)
+  _ _ _ -> false)
 
 \\ Linear-argument u-substitution for Sin/Cos/Exp: Integrate[g[a*x+b], x] where
 \\ the argument is linear in V. The linear coeffs are read off via polyalg's

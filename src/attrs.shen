@@ -42,14 +42,22 @@
 
 \\ --- Consistency checks (local, per-sketch §5; extensible point) ---
 
+(define attr-name?
+  A Name -> (= (str A) Name))
+
+(define attr-list-has-name?
+  Name [] -> false
+  Name [A | Rest] -> (if (attr-name? A Name) true (attr-list-has-name? Name Rest)))
+
 (define consistent?
-  \\ hold-all incompatible with hold-first / hold-rest
-  A Rest -> (not (or (element? (intern "hold-first") Rest)
-                     (element? (intern "hold-rest") Rest)))
-             where (= A (intern "hold-all"))
+  \\ hold-all incompatible with hold-first / hold-rest / listable
+  A Rest -> (not (or (attr-list-has-name? "hold-first" Rest)
+                     (attr-list-has-name? "hold-rest" Rest)
+                     (attr-list-has-name? "listable" Rest)))
+             where (attr-name? A "hold-all")
   \\ listable + hold-all rejected (no opt-in yet)
-  A Rest -> (not (element? (intern "hold-all") Rest))
-             where (= A (intern "listable"))
+  A Rest -> (not (attr-list-has-name? "hold-all" Rest))
+             where (attr-name? A "listable")
   \\ default: ok (flat/orderless/one-identity freely combine with each other and control except above)
   _ _ -> true)
 

@@ -140,9 +140,14 @@
                  (@s "/" (paren-if 3 (expr-prec B) (print-expr B)))))
 
 \\ Power is binary, RIGHT-assoc, prec 3.  a^b ; left child needs prec 4 (so a^b prints a, but (a^b)^c parens left).
+\\ Rational exponents must be parenthesized: x^(1/2), not x^1/2 (= (x^1)/2).
 (define print-power
   [_ A B] -> (@s (paren-if 4 (expr-prec A) (print-expr A))
-                 (@s "^" (paren-if 3 (expr-prec B) (print-expr B)))))
+                 (@s "^" (print-power-exponent B))))
+
+(define print-power-exponent
+  [rat N D] -> (@s "(" (@s (print-expr [rat N D]) ")"))
+  B -> (paren-if 3 (expr-prec B) (print-expr B)))
 
 (define print-args
   [] -> ""

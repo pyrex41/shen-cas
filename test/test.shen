@@ -35,45 +35,137 @@
             (do (output "Golden: ~A/~A passed~%" (length Passed) (length Cases))
                 (= (length Passed) (length Cases)))))
 
-(define rejection-fixtures
+(define rejection-result Category Label Ok -> [Category Label Ok])
+(define rejection-skip Category Label Why -> [Category Label Why])
+
+(define reject-register
+  R -> (let SavedDb (value *db*)
+            SavedSigs (value *structural-sigs*)
+            Ok (trap-error (do (register-rule R) false) (/. E true))
+            RestoreDb (set *db* SavedDb)
+            RestoreSigs (set *structural-sigs* SavedSigs)
+            Ok))
+
+(define reject-declare-symbol
+  Sym Attrs -> (let SavedDb (value *db*)
+                    SavedSigs (value *structural-sigs*)
+                    Ok (trap-error (do (declare-symbol Sym Attrs) false) (/. E true))
+                    RestoreDb (set *db* SavedDb)
+                    RestoreSigs (set *structural-sigs* SavedSigs)
+                    Ok))
+
+(define reject-declare-structural
+  Sym Attrs -> (let SavedDb (value *db*)
+                    SavedSigs (value *structural-sigs*)
+                    Ok (trap-error (do (declare-structural Sym Attrs) false) (/. E true))
+                    RestoreDb (set *db* SavedDb)
+                    RestoreSigs (set *structural-sigs* SavedSigs)
+                    Ok))
+
+\\ SCUD 22: executable static-rejection corpus. Each case drives the real
+\\ constructor/register/declaration path and asserts definition-time rejection.
+(define rej-non-rule-value
+  -> (reject-register [(protect not-a-rule)]))
+(define rej-literal-lhs
+  -> (reject-register (rule [int 1] [int 2])))
+(define rej-bare-symbol-lhs
+  -> (reject-register (rule [sym (protect xrej)] [sym (protect xrej)])))
+(define rej-non-symbol-headed-lhs
+  -> (reject-register (rule [[int 1] (named (protect x) (blank))] [int 0])))
+(define rej-guarded-atom-lhs
+  -> (reject-register (rule (condition [int 1] [sym (protect True)]) [int 2])))
+
+(define rej-unbound-rhs-atom
+  -> (reject-register (rule [[sym (protect Grej)] (named (protect x) (blank))]
+                         [sym (protect yrej)])))
+(define rej-unbound-rhs-nested
+  -> (reject-register (rule [[sym (protect Grej)] (named (protect x) (blank))]
+                         [[sym (protect Plus)] [sym (protect x)] [sym (protect yrej)]])))
+(define rej-unwhitelisted-rhs-head
+  -> (reject-register (rule [[sym (protect Grej)] (named (protect x) (blank))]
+                         [[sym (protect Bogusrej)] [sym (protect x)]])))
+
+(define rej-bare-seq-lhs
+  -> (reject-register (rule (blank-seq) [int 0])))
+(define rej-bare-null-seq-lhs
+  -> (reject-register (rule (blank-null) [int 0])))
+(define rej-named-seq-top-lhs
+  -> (reject-register (rule (named (protect srej) (blank-seq)) [int 0])))
+(define rej-seq-as-dispatch-head
+  -> (reject-register (rule [(blank-seq) (named (protect x) (blank))] [int 0])))
+
+(define rej-unknown-attr
+  -> (reject-declare-symbol (protect AttrRejUnknown) [(protect no-such-attr)]))
+(define rej-attrs-not-list
+  -> (reject-declare-symbol (protect AttrRejNotList) (protect hold-all)))
+(define rej-hold-all-hold-first
+  -> (reject-declare-symbol (protect AttrRejHF) [(protect hold-all) (protect hold-first)]))
+(define rej-hold-all-hold-rest
+  -> (reject-declare-symbol (protect AttrRejHR) [(protect hold-all) (protect hold-rest)]))
+(define rej-listable-hold-all
+  -> (reject-declare-symbol (protect AttrRejLH) [(protect listable) (protect hold-all)]))
+(define rej-hold-all-listable
+  -> (reject-declare-symbol (protect AttrRejHL) [(protect hold-all) (protect listable)]))
+(define rej-structural-control-attr
+  -> (reject-declare-structural (protect AttrRejStructural) [(protect hold-all)]))
+
+(define static-rejection-results
   -> [
-    "malformed-pattern: Pattern[3,5]"
-    "malformed-pattern: (pattern 3 5)"
-    "seq-outside-arg: (named x (blank-seq))"
-    "seq-outside-arg: (blank-seq)"
-    "unbound-rhs: x_ -> y"
-    "unbound-rhs: {x_ y_ -> z}"
-    "bad-attr: hold-all + hold-first"
-    "bad-attr: listable + hold-all"
-    "bad-attr: (hold-all hold-first)"
+    (rejection-result "malformed-rule" "non-rule value passed to register-rule" (rej-non-rule-value))
+    (rejection-result "malformed-rule" "literal atom LHS has no dispatch head" (rej-literal-lhs))
+    (rejection-result "malformed-rule" "bare symbol LHS has no dispatch head" (rej-bare-symbol-lhs))
+    (rejection-result "malformed-rule" "compound LHS has non-symbol head" (rej-non-symbol-headed-lhs))
+    (rejection-result "malformed-rule" "guarded LHS peels to atom" (rej-guarded-atom-lhs))
+    (rejection-result "unsafe-rhs" "RHS atom is not bound on LHS" (rej-unbound-rhs-atom))
+    (rejection-result "unsafe-rhs" "nested RHS symbol is not bound on LHS" (rej-unbound-rhs-nested))
+    (rejection-result "unsafe-rhs" "RHS compound head is not whitelisted" (rej-unwhitelisted-rhs-head))
+    (rejection-result "invalid-sequence" "bare BlankSequence as LHS" (rej-bare-seq-lhs))
+    (rejection-result "invalid-sequence" "bare BlankNullSequence as LHS" (rej-bare-null-seq-lhs))
+    (rejection-result "invalid-sequence" "named sequence as top-level LHS" (rej-named-seq-top-lhs))
+    (rejection-result "invalid-sequence" "sequence pattern used as dispatch head" (rej-seq-as-dispatch-head))
+    (rejection-result "attribute-conflict" "unknown attribute name" (rej-unknown-attr))
+    (rejection-result "attribute-conflict" "attribute argument is not a list" (rej-attrs-not-list))
+    (rejection-result "attribute-conflict" "hold-all conflicts with hold-first" (rej-hold-all-hold-first))
+    (rejection-result "attribute-conflict" "hold-all conflicts with hold-rest" (rej-hold-all-hold-rest))
+    (rejection-result "attribute-conflict" "listable conflicts with hold-all" (rej-listable-hold-all))
+    (rejection-result "attribute-conflict" "hold-all conflicts with listable" (rej-hold-all-listable))
+    (rejection-result "attribute-conflict" "declare-structural rejects control attr" (rej-structural-control-attr))
   ])
 
-\\ SCUD 22: the rejection fixtures are now EXECUTABLE -- each actually drives the
-\\ real constructor / register-rule / declare-symbol and asserts it is rejected at
-\\ definition time. This is the static-checking thesis, proven rather than declared.
-(define rej-malformed-lhs       \\ atom LHS, no dispatch head (P0-2)
-  -> (trap-error (do (register-rule (rule [int 1] [int 2])) false) (/. E true)))
-(define rej-unbound-rhs         \\ RHS free var yrej not bound on LHS, not whitelisted
-  -> (trap-error (do (register-rule (rule [[sym (protect Grej)] (named (protect x) (blank))] [sym (protect yrej)])) false) (/. E true)))
-(define rej-unwhitelisted-head  \\ RHS head Bogusrej not in phase1-globals, not bound
-  -> (trap-error (do (register-rule (rule [[sym (protect Grej)] (named (protect x) (blank))] [[sym (protect Bogusrej)] [sym (protect x)]])) false) (/. E true)))
-(define rej-seq-as-lhs          \\ a bare sequence pattern is not a registrable LHS
-  -> (trap-error (do (register-rule (rule (blank-seq) [int 0])) false) (/. E true)))
-(define rej-bad-attr            \\ hold-all + hold-first is an inconsistent attribute set
-  -> (trap-error (do (declare-symbol (protect Zzrej) [(protect hold-all) (protect hold-first)]) false) (/. E true)))
+(define static-rejection-skips
+  -> [
+    (rejection-skip "invalid-sequence" "sequence variable substituted in RHS head"
+                    "current coverage treats the bound name as safe; future expr/pattern type check should reject")
+    (rejection-skip "branch-unsafe-identity" "Log[Exp[u]] -> u"
+                    "no definition-time branch-safety hook; boot table omits it and external corpus checks inert behavior")
+    (rejection-skip "branch-unsafe-identity" "Sqrt[u^2] -> u"
+                    "no definition-time branch-safety hook; only Sqrt[u]^2 -> u is registered")
+    (rejection-skip "nonterminating-rewrite" "F[x_] -> F[F[x]]"
+                    "loop analysis is warning/step-limit oriented today, not a hard register-rule rejection")
+  ])
+
+(define rejection-passed?
+  [_ _ Ok] -> Ok)
+
+(define print-rejection-result
+  [Category Label Ok] -> (do (output "  ~A ~A: ~A~%" (if Ok "PASS" "FAIL") Category Label) Ok))
+
+(define print-rejection-skip
+  [Category Label Why] -> (do (output "  SKIP ~A: ~A (~A)~%" Category Label Why) true))
 
 (define run-rejection-tests
-  -> (let R1 (rej-malformed-lhs)
-          R2 (rej-unbound-rhs)
-          R3 (rej-unwhitelisted-head)
-          R4 (rej-seq-as-lhs)
-          R5 (rej-bad-attr)
-          Ok (and R1 R2 R3 R4 R5)
-          (do (output "~%=== rejection fixtures (executable, SCUD 22) ===~%")
-              (output "  malformed-lhs=~A unbound-rhs=~A unwhitelisted-head=~A seq-as-lhs=~A bad-attr=~A~%" R1 R2 R3 R4 R5)
-              (if Ok (output "rejection fixtures: PASS (all rejected at definition time)~%")
-                  (output "rejection fixtures: FAIL (something ill-formed was accepted)~%"))
-              Ok)))
+  -> (do (output "~%=== static rejection corpus (executable, SCUD 22) ===~%")
+         (let Results (static-rejection-results)
+              Skips (static-rejection-skips)
+              Printed (map (/. R (print-rejection-result R)) Results)
+              SkipPrinted (map (/. S (print-rejection-skip S)) Skips)
+              Ok (every (/. R (rejection-passed? R)) Results)
+              (do (output "static rejection corpus: rejected=~A skipped-future=~A~%"
+                          (length (filter (/. R (rejection-passed? R)) Results))
+                          (length Skips))
+                  (if Ok (output "static rejection corpus: PASS (all supported malformed inputs rejected at definition time)~%")
+                      (output "static rejection corpus: FAIL (a supported malformed input was accepted)~%"))
+                  Ok))))
 
 (define attrs-demo
   -> (trap-error
@@ -449,6 +541,188 @@
                       OkSQ OkUSQ OkFQy OkFQn OkNQi OkNQs OkPT1 OkPT2 OkDXX OkDYX)
               Ok)))
 
+\\ === Matcher stress corpus ===
+\\ Fast, direct matcher coverage for first-order, repeated-variable soundness,
+\\ BlankSequence/BlankNullSequence, Flat/Orderless AC, nested AC, guarded patterns,
+\\ and backtracking after binding conflicts.
+(define stress-match?
+  P E -> (match-some? (match P E)))
+
+(define stress-no-match?
+  P E -> (not (stress-match? P E)))
+
+(define stress-match-bindings
+  P E -> (let M (match P E)
+             (if (match-some? M) (match-unwrap M) [])))
+
+(define stress-binding-content?
+  Name Expected Bs -> (let Hit (assoc Name Bs)
+                          (and (assoc-hit? Hit)
+                               (content-eq (hd (tl Hit)) Expected))))
+
+(define stress-binding-exact?
+  Name Expected Bs -> (let Hit (assoc Name Bs)
+                          (and (assoc-hit? Hit)
+                               (= (hd (tl Hit)) Expected))))
+
+(define stress-report
+  Label true -> (do (output "  PASS matcher-stress: ~A~%" Label) true)
+  Label false -> (do (output "  FAIL matcher-stress: ~A~%" Label) false))
+
+(define stress-first-order
+  -> (let P [[sym (protect FStress)] [int 1] (named (protect xfo) (blank)) [blank (protect HStress)]]
+          E [[sym (protect FStress)] [int 1] [sym (protect yfo)] [[sym (protect HStress)] [int 7]]]
+          B (stress-match-bindings P E)
+          C1 (stress-report "first-order typed blank binds symbol"
+                            (and (stress-match? P E)
+                                 (stress-binding-content? (protect xfo) [sym (protect yfo)] B)))
+          C2 (stress-report "first-order typed blank rejects wrong head"
+                            (stress-no-match? P [[sym (protect FStress)] [int 1] [sym (protect yfo)] [[sym (protect KStress)] [int 7]]]))
+          C3 (stress-report "first-order rejects compound head mismatch"
+                            (stress-no-match? P [[sym (protect GStress)] [int 1] [sym (protect yfo)] [[sym (protect HStress)] [int 7]]]))
+          (and C1 (and C2 C3))))
+
+(define stress-repeated-vars
+  -> (let P [[sym (protect RStress)]
+             (named (protect xr) (blank))
+             [[sym (protect WrapR)] (named (protect xr) (blank))]
+             (named (protect xr) (blank))]
+          C1 (stress-report "repeated first-order variable accepts equal values"
+                            (stress-match? P [[sym (protect RStress)] [int 4] [[sym (protect WrapR)] [int 4]] [int 4]]))
+          C2 (stress-report "repeated first-order variable rejects conflict"
+                            (stress-no-match? P [[sym (protect RStress)] [int 4] [[sym (protect WrapR)] [int 5]] [int 4]]))
+          PA [[sym (protect Plus)] (named (protect xa) (blank)) (named (protect xa) (blank))]
+          C3 (stress-report "repeated AC variable accepts equal multiset"
+                            (stress-match? PA [[sym (protect Plus)] [int 6] [int 6]]))
+          C4 (stress-report "repeated AC variable rejects unequal multiset"
+                            (stress-no-match? PA [[sym (protect Plus)] [int 6] [int 7]]))
+          (and C1 (and C2 (and C3 C4)))))
+
+(define stress-sequences
+  -> (let P [[sym (protect SeqStress)]
+             [sym (protect head)]
+             (named (protect sseq) (blank-seq))
+             [sym (protect mid)]
+             (named (protect tseq) (blank-null))
+             [sym (protect tail)]]
+          E [[sym (protect SeqStress)] [sym (protect head)] [int 1] [int 2] [sym (protect mid)] [sym (protect tail)]]
+          B (stress-match-bindings P E)
+          C1 (stress-report "sequence split captures min-one and empty null sequence"
+                            (and (stress-match? P E)
+                                 (and (stress-binding-exact? (protect sseq) [(intern "seqval") [int 1] [int 2]] B)
+                                      (stress-binding-exact? (protect tseq) [(intern "seqval")] B))))
+          PMin [[sym (protect SeqStress)] [sym (protect head)] (named (protect mseq) (blank-seq)) [sym (protect tail)]]
+          C2 (stress-report "BlankSequence rejects empty capture"
+                            (stress-no-match? PMin [[sym (protect SeqStress)] [sym (protect head)] [sym (protect tail)]]))
+          PBack [[sym (protect SeqBack)]
+                 (named (protect rseq) (blank-null))
+                 (named (protect xseq) (blank))
+                 (named (protect rseq) (blank-null))]
+          EBack [[sym (protect SeqBack)] [int 1] [int 2] [int 1]]
+          BBack (stress-match-bindings PBack EBack)
+          C3 (stress-report "sequence backtracks after repeated seq conflict"
+                            (and (stress-match? PBack EBack)
+                                 (and (stress-binding-content? (protect xseq) [int 2] BBack)
+                                      (stress-binding-exact? (protect rseq) [(intern "seqval") [int 1]] BBack))))
+          C4 (stress-report "repeated BlankNullSequence rejects irreconcilable split"
+                            (stress-no-match? PBack [[sym (protect SeqBack)] [int 1] [int 2] [int 3]]))
+          (and C1 (and C2 (and C3 C4)))))
+
+(define stress-ac
+  -> (let P [[sym (protect Plus)] [int 1] (named (protect ap) (blank)) [int 3]]
+          E [[sym (protect Plus)] [int 3] [int 9] [int 1]]
+          B (stress-match-bindings P E)
+          C1 (stress-report "Orderless matches literal anchors in any order"
+                            (and (stress-match? P E)
+                                 (stress-binding-content? (protect ap) [int 9] B)))
+          C2 (stress-report "Orderless rejects missing repeated literal"
+                            (stress-no-match? [[sym (protect Plus)] [int 1] (named (protect bp) (blank)) [int 1]]
+                                              [[sym (protect Plus)] [int 1] [int 2] [int 3]]))
+          PFlat [[sym (protect Plus)] [int 1] [int 2] [int 3] (named (protect zflat) (blank))]
+          EFlat [[sym (protect Plus)]
+                 [[sym (protect Plus)] [int 3] [sym (protect zflat)]]
+                 [[sym (protect Plus)] [int 2] [int 1]]]
+          BFlat (stress-match-bindings PFlat EFlat)
+          C3 (stress-report "Flat flattens nested same-head AC expressions"
+                            (and (stress-match? PFlat EFlat)
+                                 (stress-binding-content? (protect zflat) [sym (protect zflat)] BFlat)))
+          C4 (stress-report "Flat/Orderless anchored multi-seq pattern matches"
+                            (stress-match? [[sym (protect Times)]
+                                            (named (protect lefts) (blank-null))
+                                            [int 0]
+                                            (named (protect rights) (blank-null))]
+                                           [[sym (protect Times)] [sym (protect aa)] [int 0] [sym (protect bb)]]))
+          C5 (stress-report "Flat/Orderless rejects absent literal after flatten"
+                            (stress-no-match? [[sym (protect Plus)] [int 1] [int 2] [int 4]]
+                                              [[sym (protect Plus)] [[sym (protect Plus)] [int 1] [int 2]] [int 3]]))
+          PACBack [[sym (protect Plus)] (named (protect xacb) (blank)) (named (protect xacb) (blank)) [int 2]]
+          C6 (stress-report "Orderless backtracks after repeated variable conflict"
+                            (stress-match? PACBack [[sym (protect Plus)] [int 2] [int 1] [int 1]]))
+          C7 (stress-report "Orderless repeated variable conflict can still fail"
+                            (stress-no-match? PACBack [[sym (protect Plus)] [int 2] [int 1] [int 3]]))
+          (and C1 (and C2 (and C3 (and C4 (and C5 (and C6 C7))))))))
+
+(define stress-nested-ac
+  -> (let P [[sym (protect Integrate)]
+             [[sym (protect Sin)]
+              [[sym (protect Plus)]
+               [[sym (protect Times)]
+                (named (protect ausub) (blank))
+                (named (protect xu) (blank))]
+               (named (protect busub) (blank))]]
+             (named (protect xu) (blank))]
+          E [[sym (protect Integrate)]
+             [[sym (protect Sin)]
+              [[sym (protect Plus)]
+               [[sym (protect Times)] [sym (protect xu)] [int 2]]
+               [int 3]]]
+             [sym (protect xu)]]
+          B (stress-match-bindings P E)
+          C1 (stress-report "nested AC prefers self-binding through outer repeated variable"
+                            (and (stress-match? P E)
+                                 (and (stress-binding-content? (protect ausub) [int 2] B)
+                                      (and (stress-binding-content? (protect xu) [sym (protect xu)] B)
+                                           (stress-binding-content? (protect busub) [int 3] B)))))
+          C2 (stress-report "nested AC rejects conflicting integration variable"
+                            (stress-no-match? P [[sym (protect Integrate)]
+                                                 [[sym (protect Sin)]
+                                                  [[sym (protect Plus)]
+                                                   [[sym (protect Times)] [sym (protect yu)] [int 2]]
+                                                   [int 3]]]
+                                                 [sym (protect xu)]]))
+          (and C1 C2)))
+
+(define stress-guards
+  -> (let PFree (condition [[sym (protect GuardStress)]
+                           (named (protect eguard) (blank))
+                           (named (protect xguard) (blank))]
+                          [[sym (protect FreeQ)] [sym (protect eguard)] [sym (protect xguard)]])
+          C1 (stress-report "Condition guard accepts FreeQ true"
+                            (stress-match? PFree [[sym (protect GuardStress)] [[sym (protect WrapG)] [sym (protect yg)]] [sym (protect xg)]]))
+          C2 (stress-report "Condition guard rejects FreeQ false"
+                            (stress-no-match? PFree [[sym (protect GuardStress)] [[sym (protect WrapG)] [sym (protect xg)]] [sym (protect xg)]]))
+          PPTest [[sym (protect PTestStress)]
+                  (ptest (named (protect nptest) (blank)) [sym (protect NumberQ)])
+                  (named (protect restptest) (blank))]
+          C3 (stress-report "PatternTest accepts numeric argument inside compound"
+                            (stress-match? PPTest [[sym (protect PTestStress)] [int 42] [sym (protect okp)]]))
+          C4 (stress-report "PatternTest rejects symbolic argument inside compound"
+                            (stress-no-match? PPTest [[sym (protect PTestStress)] [sym (protect nopep)] [sym (protect okp)]]))
+          (and C1 (and C2 (and C3 C4)))))
+
+(define test-matcher-stress
+  -> (let Ign (output "~%=== matcher stress corpus ===~%")
+          First (stress-first-order)
+          Repeated (stress-repeated-vars)
+          Seq (stress-sequences)
+          AC (stress-ac)
+          Nested (stress-nested-ac)
+          Guards (stress-guards)
+          Ok (and First (and Repeated (and Seq (and AC (and Nested Guards)))))
+          (do (if Ok (output "matcher stress corpus: PASS~%")
+                  (output "matcher stress corpus: FAIL~%"))
+              Ok)))
+
 (define test-eval-evaluator-wave1
   -> (let Ign (output "~%=== SCUD 17 Wave 1 ===~%")
           Ok (and (test-eval-sequence)
@@ -668,15 +942,162 @@
                   (output "integration (SCUD 21): FAIL~%"))
               Ok)))
 
+\\ === Performance/regression guards for expensive symbolic paths ===
+\\ These are structural guards, not timing assertions: each case drives a formerly
+\\ expensive path into a bounded skip/fuel/inert behavior that the default harness
+\\ can check deterministically.
+(define perf-plus -> [sym (protect Plus)])
+(define perf-times -> [sym (protect Times)])
+(define perf-simplify E -> [[sym (protect Simplify)] E])
+(define perf-d E -> [[sym (protect D)] E (dvar)])
+(define perf-int E -> [[sym (protect Integrate)] E (dvar)])
+
+(define perf-range-ints
+  From To -> (if (> From To)
+               []
+               [[int From] | (perf-range-ints (+ From 1) To)]))
+
+(define perf-symbol-range
+  Prefix From To -> (if (> From To)
+                      []
+                      [[sym (intern (@s Prefix (str From)))] | (perf-symbol-range Prefix (+ From 1) To)]))
+
+(define perf-nested-simplify
+  0 E -> E
+  N E -> (perf-simplify (perf-nested-simplify (- N 1) E)))
+
+(define perf-like-term-zero
+  -> [(perf-plus)
+       [(perf-times) [int 1] [sym (protect xp)]]
+       [(perf-times) [int 2] [sym (protect xp)]]
+       [(perf-times) [int -3] [sym (protect xp)]]
+       [int 4]
+       [int -4]])
+
+(define perf-ac-max-arg-skip
+  -> (let Saved (value *ac-max-args*)
+          _ (set *ac-max-args* 3)
+          P [(perf-plus)
+             [sym (protect acAnchor)]
+             (named (protect a) (blank))
+             (named (protect b) (blank))
+             (named (protect c) (blank))
+             (named (protect d) (blank))]
+          E [(perf-plus)
+             [sym (protect p1)] [sym (protect p2)] [sym (protect p3)] [sym (protect p4)]
+             [sym (protect acAnchor)]]
+          M (match P E)
+          _ (set *ac-max-args* Saved)
+          Ok (not (match-some? M))
+          (do (output "perf: AC max-arg skip avoids permutation match=~A~%" Ok) Ok)))
+
+(define perf-rule-fuel-limit
+  -> (let Saved (value *max-rule-tries*)
+          _ (set *max-rule-tries* 2)
+          E [[sym (protect FuelPerf)] [int 3]]
+          R1 (rule [[sym (protect FuelPerf)] [int 1]] [int 11])
+          R2 (rule [[sym (protect FuelPerf)] [int 2]] [int 22])
+          R3 (rule [[sym (protect FuelPerf)] (named (protect x) (blank))] [int 99])
+          Got (try-reduce-db (value *db*) E [R1 R2 R3])
+          _ (set *max-rule-tries* Saved)
+          Ok (content-eq Got E)
+          (do (output "perf: rule fuel leaves later match inert=~A~%" Ok) Ok)))
+
+(define perf-eval-step-fuel
+  -> (let SavedDb (value *db*)
+          SavedSteps (value *max-eval-steps*)
+          LoopRule (rule [[sym (protect LoopPerf)] (named (protect q) (blank))]
+                         [[sym (protect LoopPerf)] [[sym (protect Plus)] [sym (protect q)] [int 1]]])
+          _ (set *db* (assert-rule (value *db*) [sym (protect LoopPerf)] down LoopRule))
+          _ (set *max-eval-steps* 6)
+          Got (reduce [[sym (protect LoopPerf)] [int 1]])
+          _ (set *max-eval-steps* SavedSteps)
+          _ (set *db* SavedDb)
+          Ok (= (head Got) [sym (protect LoopPerf)])
+          (do (output "perf: evaluator step fuel terminates with inert head=~A~%" Ok) Ok)))
+
+(define perf-large-plus-times
+  -> (let Ign (demo-register-simplify)
+          BigPlus [(perf-plus) | (perf-range-ints 1 20)]
+          Sum (reduce BigPlus)
+          OkPlus (content-eq Sum [int 210])
+          BigTimes [(perf-times) | (append (perf-symbol-range "pt" 1 10) [[int 0]])]
+          Prod (reduce BigTimes)
+          OkTimes (content-eq Prod [int 0])
+          Ok (and OkPlus OkTimes)
+          (do (output "perf: large Plus folds=~A large Times zero=~A~%" OkPlus OkTimes) Ok)))
+
+(define perf-repeated-simplify
+  -> (let Ign (demo-register-simplify)
+          Got (reduce (perf-nested-simplify 5 (perf-like-term-zero)))
+          Ok (content-eq Got [int 0])
+          (do (output "perf: nested repeated Simplify idempotent=~A~%" Ok) Ok)))
+
+(define perf-seq-ac-anchored
+  -> (let Saved (value *ac-max-args*)
+          _ (set *ac-max-args* 3)
+          P [(perf-times)
+             (named (protect s) [blank-null-seq])
+             [int 0]
+             (named (protect t) [blank-null-seq])]
+          E [(perf-times) | (append (perf-symbol-range "pa" 1 9) [[int 0]])]
+          M (match P E)
+          _ (set *ac-max-args* Saved)
+          Ok (match-some? M)
+          (do (output "perf: anchored sequence AC match bounded=~A~%" Ok) Ok)))
+
+(define perf-calculus-bounded
+  -> (let Ign (demo-register-calculus)
+          Saved (value *ac-max-args*)
+          _ (set *ac-max-args* 4)
+          X (dvar)
+          Sum6 [(perf-plus) | [X X X X X X]]
+          D6 (reduce (perf-d Sum6))
+          OkD (content-eq D6 [int 6])
+          HardInt (reduce (perf-int [(perf-times) X [[sym (protect Sin)] [[sym (protect Power)] X [int 2]]]]))
+          OkI (= (head HardInt) [sym (protect Integrate)])
+          _ (set *ac-max-args* Saved)
+          Ok (and OkD OkI)
+          (do (output "perf: bounded D large-plus=~A inert hard integral=~A~%" OkD OkI) Ok)))
+
+(define perf-parser-roundtrip-size
+  -> (let Ign (demo-register-arith)
+          S "Fbig[a,b,c,d,e,f,g,h,i,j,k,l]"
+          E (parse-expr-string S)
+          Printed (print-expr E)
+          E2 (parse-expr-string Printed)
+          Ok (content-eq E E2)
+          (do (output "perf: parser/printer medium roundtrip=~A~%" Ok) Ok)))
+
+(define run-performance-guard-tests
+  -> (let SavedDb (value *db*)
+          SavedSigs (value *structural-sigs*)
+          Ign (output "~%=== performance/regression guards ===~%")
+          Ok (and (perf-ac-max-arg-skip)
+                  (perf-rule-fuel-limit)
+                  (perf-eval-step-fuel)
+                  (perf-large-plus-times)
+                  (perf-repeated-simplify)
+                  (perf-seq-ac-anchored)
+                  (perf-calculus-bounded)
+                  (perf-parser-roundtrip-size))
+          RestoreDb (set *db* SavedDb)
+          RestoreSigs (set *structural-sigs* SavedSigs)
+          (do (if Ok (output "performance guards: PASS~%")
+                  (output "performance guards: FAIL~%"))
+              Ok)))
+
 (define run-all-tests
   -> (let Ign (output "=== shen-cas test harness ===~%")
             Ok (and (run-golden) (run-rejection-tests) (attrs-demo) (run-lfp-tests)
                     (run-analysis-tests) (run-phase1-skeleton) (test-scope-block-fork)
                     (test-backend-seam) (test-correctness-gate) (test-eval-evaluator-wave1)
-                    (test-simplify) (test-differentiation) (test-integration)
+                    (test-matcher-stress) (test-simplify) (test-differentiation) (test-integration)
+                    (run-performance-guard-tests)
                     (run-calculus-tests) (run-reader-printer-tests)
                     (run-poly-tests) (run-polyalg-tests) (run-solve-tests)
-                    (run-series-tests) (run-external-corpus-tests))
+                    (run-series-tests) (run-property-tests)
+                    (run-external-corpus-tests))
             (do (if Ok (output "~%ALL PASS~%") (output "~%SOME FAIL~%")) Ok)))
 
 (define test-backend-seam

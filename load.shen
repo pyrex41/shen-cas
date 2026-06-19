@@ -47,5 +47,6 @@
 (load "test/test-polyalg.shen")   \\ SCUD 18 Wave C: defines run-polyalg-tests
 (load "test/test-solve.shen")     \\ SCUD 19 Wave D: defines run-solve-tests
 (load "test/test-series.shen")    \\ SCUD 20 Wave E: defines run-series-tests
+(load "test/test-properties.shen") \\ Property-style checks beyond exact goldens
 (load "test/test-external-corpus.shen")  \\ Rubi/SymPy corpus: defines run-external-corpus-tests
 (load "test/test.shen")

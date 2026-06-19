@@ -35,12 +35,17 @@
 (register-rule (rule [[sym (protect Log)] [int 1]] [int 0]))
 (register-rule (rule [[sym (protect Sqrt)] [int 0]] [int 0]))
 (register-rule (rule [[sym (protect Sqrt)] [int 1]] [int 1]))
-\\ Sqrt[u]^2 -> u : universally valid (Sqrt[u] is by definition a value whose square
-\\ is u). A general radical-square simplification. (Note: this alone does NOT make
-\\ Solve verify irrational quadratic roots -- the root SQUARED appears as
-\\ Power[Times[c,Sqrt[d]],2], which needs an Expand in the substitute-back gate to
-\\ reach this form; Solve still soundly declines those. See solve.shen caveats.)
-(register-rule (rule [[sym (protect Power)] [[sym (protect Sqrt)] [named (protect u) [blank]]] [int 2]]
+\\ General radical normalization: Sqrt[u] -> u^(1/2). Registered AFTER the exact
+\\ Sqrt[0]/Sqrt[1] cases (first match wins) so those still intercept. This unifies
+\\ radicals with the power tower: the bare-power integration rule then handles
+\\ Integrate[Sqrt[x],x] = (2/3) x^(3/2), and differentiate-back verifies because
+\\ both the integrand and D[antiderivative] live in Power form. (Sqrt prints as
+\\ u^(1/2); Solve's quadratic roots remain inert as before.)
+(register-rule (rule [[sym (protect Sqrt)] [named (protect u) [blank]]]
+                     [[sym (protect Power)] [sym (protect u)] [rat 1 2]]))
+\\ (u^(1/2))^2 -> u : sound radical-square simplification (principal branch). The
+\\ Power form of the old Power[Sqrt[u],2] -> u rule, now that Sqrt is normalized away.
+(register-rule (rule [[sym (protect Power)] [[sym (protect Power)] [named (protect u) [blank]] [rat 1 2]] [int 2]]
                      [sym (protect u)]))
 
 (output "boot/elemfun.shen loaded (elementary symbols + exact-value table).~%")
