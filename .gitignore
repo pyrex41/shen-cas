@@ -24,3 +24,6 @@ golden-failures/
 .claude/tracking/
 .claude/workflows/
 .worktrees/
+
+# Kernel cache
+.shen-kernel-cache.bin

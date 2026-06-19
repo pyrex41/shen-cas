@@ -613,7 +613,7 @@
 \\ CRITICAL self-check: for every closed-form result R of Integrate[f,x],
 \\ Simplify[D[R,x] - f] must reduce to [int 0].
 (define int-head -> [sym (protect Integrate)])
-(define make-int  F -> [(int-head) F (dvar)])
+(define make-integ  F -> [(int-head) F (dvar)])
 (define make-d-i  E -> [(d-expr) E (dvar)])
 (define simplify-of E -> (reduce [[sym (protect Simplify)] E]))
 
@@ -625,11 +625,11 @@
 
 \\ self-check: Simplify[ D[(Integrate[F,x]),x] - F ] == [int 0]
 (define integrates-back?
-  F -> (let R (reduce (make-int F))
+  F -> (let R (reduce (make-integ F))
             (content-eq (simplify-of (diff-back R F)) [int 0])))
 
 (define inert-integral?
-  F -> (let R (reduce (make-int F))
+  F -> (let R (reduce (make-integ F))
             (= (head R) (int-head)))) \\ head still Integrate
 
 (define test-integration
@@ -637,13 +637,13 @@
           Ign (output "~%=== SCUD 21 integration ===~%")
           X (dvar)
           \\ Integrate[x^2,x] -> x^3/3 (exact rational coefficient)
-          R2 (reduce (make-int [[sym (protect Power)] X [int 2]]))
+          R2 (reduce (make-integ [[sym (protect Power)] X [int 2]]))
           Ok2 (term-set-eq? R2 [[sym (protect Times)] [rat 1 3] [[sym (protect Power)] X [int 3]]])
           \\ Integrate[x^-1,x] -> Log[x]
-          Rm1 (reduce (make-int [[sym (protect Power)] X [int -1]]))
+          Rm1 (reduce (make-integ [[sym (protect Power)] X [int -1]]))
           Okm1 (content-eq Rm1 [[sym (protect Log)] X])
           \\ Integrate[Sin[x],x] -> -Cos[x]  i.e. Times[-1, Cos[x]]
-          RS (reduce (make-int [[sym (protect Sin)] X]))
+          RS (reduce (make-integ [[sym (protect Sin)] X]))
           OkS (term-set-eq? RS [[sym (protect Times)] [int -1] [[sym (protect Cos)] X]])
           \\ Integrate[2x+3,x] -> x^2 + 3x  (verified via self-check below; here a Simplify shape)
           Flin [[sym (protect Plus)] [[sym (protect Times)] [int 2] X] [int 3]]
@@ -674,7 +674,7 @@
                     (run-analysis-tests) (run-phase1-skeleton) (test-scope-block-fork)
                     (test-backend-seam) (test-correctness-gate) (test-eval-evaluator-wave1)
                     (test-simplify) (test-differentiation) (test-integration)
-                    (run-calculus-tests))
+                    (run-calculus-tests) (run-reader-printer-tests))
             (do (if Ok (output "~%ALL PASS~%") (output "~%SOME FAIL~%")) Ok)))
 
 (define test-backend-seam

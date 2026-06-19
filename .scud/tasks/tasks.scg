@@ -3,7 +3,7 @@
 
 @meta {
   name init
-  updated 2026-06-19T14:40:49Z
+  updated 2026-06-19T15:01:25Z
 }
 
 @nodes
@@ -43,7 +43,7 @@
 14.1 | Parse supported algebra and rule syntax into checked internal forms | D | 0 | H
 14.2 | Print supported internal forms and add round-trip tests | P | 0 | M
 15 | Add backend equivalence harness and defer perf backends | D | 3 | M
-16 | Reader/printer: real tokenizer + InputForm printer with round-trip tests | P | 5 | H
+16 | Reader/printer: real tokenizer + InputForm printer with round-trip tests | D | 5 | H
 17 | Polynomial normal form: monomial ordering, expr<->poly over Q, PolynomialQ, Expand | P | 8 | H
 18 | Polynomial algebra: arithmetic, multivariate GCD, Together/Cancel, bounded Factor | P | 8 | H
 
