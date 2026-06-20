@@ -143,8 +143,146 @@
 (define integrate-after-usub
   Integrand V -> (let T (integrate-table Integrand V)
                       (if (= T [none])
-                          (integrate-by-parts Integrand V)
+                          (integrate-after-table Integrand V)
                           T)))
+
+(define integrate-after-table
+  Integrand V -> (let R (integrate-rational Integrand V)
+                      (if (= R [none])
+                          (integrate-by-parts Integrand V)
+                          R)))
+
+\\ ============================================================================
+\\ Rational-function integration (Wave 4). Two sound strategies for a Divide[N,D]
+\\ integrand, consulted after the antiderivative table and before by-parts:
+\\
+\\   (1) Cancel-then-integrate: reduce N/D to lowest terms (polyalg Cancel) and,
+\\       if it changed, integrate the simpler form through the full evaluator.
+\\       Re-routes e.g. (x+1)/(x^2-1) -> 1/(x-1) -> Log[x-1]. Committed only when
+\\       the re-integration fully resolves (no residual Integrate head).
+\\
+\\   (2) Quadratic denominator (deg_V D = 2, deg_V N <= 1):
+\\        - discriminant < 0 (irreducible): complete the square ->
+\\            (n1/2a) Log[D] + ((n0 - n1 b/2a)/(a k)) ArcTan[(x + b/2a)/k],  k=Sqrt[(4ac-b^2)/4a^2]
+\\          (a standard exact identity; spot-checked by the test corpus).
+\\        - two distinct rational roots: cover-up partial fractions ->
+\\            A1 Log[x-r1] + A2 Log[x-r2],  Ai = N(ri)/D'(ri)
+\\          VERIFIED un-foolably: N == a*(A1 (x-r2) + A2 (x-r1)) as polynomials.
+\\
+\\ Anything outside these shapes declines ([none]) -> by-parts / inert. Built on
+\\ polyalg (expr->coeffs/vec-eval/vec-deriv/coeffs->expr/rational-roots, all live
+\\ by reduce time) and the num tower.
+\\ ============================================================================
+(define ct-divide -> [sym (protect Divide)])
+(define ct-log    -> [sym (protect Log)])
+(define ct-arctan -> [sym (protect ArcTan)])
+(define ct-sqrt   -> [sym (protect Sqrt)])
+
+(define integrate-rational
+  [[sym S] N D] V -> (if (= (str S) "Divide") (irat-divide N D V) [none])
+  _ _ -> [none])
+
+(define irat-divide
+  N D V -> (irat-try-cancel N D V (cancel-builtin [(ct-divide) N D])))
+
+(define irat-try-cancel
+  N D V [some Res] -> (if (content-eq Res [(ct-divide) N D])
+                          (irat-quadratic N D V)
+                          (irat-after-cancel Res N D V))
+  N D V _ -> (irat-quadratic N D V))
+
+(define irat-after-cancel
+  Res N D V -> (let R (normal-form [[sym (protect Integrate)] Res V])
+                   (if (has-integrate-head? R)
+                       (irat-quadratic N D V)
+                       [some R])))
+
+\\ 0-indexed nth coeff (default [int 0] past the end).
+(define irat-nth
+  [] _ -> [int 0]
+  [X | _] 0 -> X
+  [_ | Xs] I -> (irat-nth Xs (- I 1)))
+
+(define irat-neg? E -> (< (rat-num (as-rat E)) 0))
+
+(define irat-quadratic
+  N D V -> (irat-q1 N D V (expr->coeffs V D)))
+
+(define irat-q1
+  N D V [some Dv0] -> (irat-q2 N D V (trim-coeffs Dv0))
+  N D V _ -> [none])
+
+(define irat-q2
+  N D V Dv -> (if (= (coeffs-deg Dv) 2) (irat-q3 N D V Dv (expr->coeffs V N)) [none]))
+
+(define irat-q3
+  N D V Dv [some Nv0] -> (irat-q4 D V Dv (trim-coeffs Nv0))
+  N D V Dv _ -> [none])
+
+(define irat-q4
+  D V Dv Nv -> (if (> (coeffs-deg Nv) 1) [none] (irat-q5 D V Dv Nv)))
+
+(define irat-q5
+  D V Dv Nv -> (let A (irat-nth Dv 2)
+                    B (irat-nth Dv 1)
+                    C (irat-nth Dv 0)
+                    Disc (num-sub (num-mul B B) (num-mul [int 4] (num-mul A C)))
+                    (if (irat-neg? Disc)
+                        (irat-arctan D V A B C Nv)
+                        (irat-twolog D V Dv Nv))))
+
+\\ --- irreducible quadratic -> Log + ArcTan (complete the square) ---
+(define irat-arctan
+  D V A B C Nv -> (let TwoA (num-mul [int 2] A)
+                       N0 (irat-nth Nv 0)
+                       N1 (irat-nth Nv 1)
+                       H (num-div B TwoA)
+                       LogCoeff (num-div N1 TwoA)
+                       ArcRat (num-div (num-sub N0 (num-mul N1 H)) A)
+                       MNum (num-sub (num-mul [int 4] (num-mul A C)) (num-mul B B))
+                       MDen (num-mul [int 4] (num-mul A A))
+                       M (num-div MNum MDen)
+                       K [(ct-sqrt) M]
+                       Kinv [(ct-power) K [int -1]]
+                       Arg [(ct-times) [(ct-plus) V H] Kinv]
+                       ArcTerm [(ct-times) ArcRat Kinv [(ct-arctan) Arg]]
+                       LogTerm [(ct-times) LogCoeff [(ct-log) D]]
+                       [some (normal-form [(ct-plus) LogTerm ArcTerm])]))
+
+\\ --- two distinct rational roots -> cover-up partial fractions (2 logs) ---
+(define irat-twolog
+  D V Dv Nv -> (irat-twolog-r V Dv Nv (rational-roots Dv)))
+
+(define irat-twolog-r
+  V Dv Nv [R1 R2] -> (if (num-eq? R1 R2) [none] (irat-twolog-cv V Dv Nv R1 R2))
+  V Dv Nv _ -> [none])
+
+(define irat-twolog-cv
+  V Dv Nv R1 R2 -> (let A (irat-nth Dv 2)
+                        Dp (vec-deriv Dv)
+                        A1 (num-div (vec-eval Nv R1) (vec-eval Dp R1))
+                        A2 (num-div (vec-eval Nv R2) (vec-eval Dp R2))
+                        Cand [(ct-plus) [(ct-times) A1 [(ct-log) (irat-linsub V R1)]]
+                                        [(ct-times) A2 [(ct-log) (irat-linsub V R2)]]]
+                        (if (irat-twolog-ok? Nv A A1 A2 R1 R2)
+                            [some (normal-form Cand)]
+                            [none])))
+
+\\ (x - R) as an expr.
+(define irat-linsub
+  V R -> (coeffs->expr V [(num-mul [int -1] R) [int 1]]))
+
+\\ un-foolable check: N == a*(A1 (x-R2) + A2 (x-R1)) as polynomials.
+(define irat-twolog-ok?
+  Nv A A1 A2 R1 R2 -> (let LV1 [(num-mul [int -1] R2) [int 1]]
+                           LV2 [(num-mul [int -1] R1) [int 1]]
+                           RHS (vec-scale A (vec-add (vec-scale A1 LV1) (vec-scale A2 LV2)))
+                           (irat-vec-eq? (trim-coeffs RHS) (trim-coeffs Nv))))
+
+(define irat-vec-eq?
+  [] [] -> true
+  [X | Xs] [Y | Ys] -> (if (num-eq? X Y) (irat-vec-eq? Xs Ys) false)
+  _ _ -> false)
 
 \\ Wired antiderivative table for forms a positional AC rule cannot match because
 \\ of the orderless canonical ordering of the inner Plus. Detection via expr->coeffs

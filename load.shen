@@ -54,6 +54,7 @@
 (load "test/test-numfun.shen")    \\ elementary & number-theory fns: defines run-numfun-tests
 (load "test/test-elemlib.shen")   \\ recip-trig/hyperbolic/inverse-hyperbolic: defines run-elemlib-tests
 (load "test/test-numtheory.shen") \\ number theory: defines run-numtheory-tests
+(load "test/test-ratint.shen")    \\ rational-function integration: defines run-ratint-tests
 (load "test/test-properties.shen") \\ Property-style checks beyond exact goldens
 (load "test/test-external-corpus.shen")  \\ Rubi/SymPy corpus: defines run-external-corpus-tests
 (load "test/test.shen")

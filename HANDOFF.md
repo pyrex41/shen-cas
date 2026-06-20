@@ -47,6 +47,25 @@ Each new builtin returns a result only on its exact domain and otherwise decline
   ∫Sinh=Cosh, ∫Cosh=Sinh (incl. linear-argument u-substitution). Verified by
   direct `Simplify[D[F]-expected]==0` and differentiate-back.
 
+- **Rational-function integration** (`src/calc-helpers.shen`,
+  `test/test-ratint.shen`): for a `Divide[N,D]` integrand — (1) Cancel-then-
+  integrate reducible ratios (`(x+1)/(x^2-1) -> Log[x-1]`); (2) quadratic
+  denominator, numerator deg ≤ 1: irreducible → complete-the-square →
+  `Log + ArcTan` (`1/(x^2+2x+2) -> ArcTan[x+1]`), two distinct rational roots →
+  cover-up partial fractions → two `Log`s (`1/(x^2-1)`), the latter verified
+  un-foolably by `N == a*(A1 (x-r2) + A2 (x-r1))`. Higher-degree denominators stay
+  inert. The test uses a numeric differentiate-back oracle (sample points), which
+  verifies Log/ArcTan antiderivatives that Simplify-based diff-back cannot reduce.
+
+### Performance: content-hash memo
+
+`store.shen` memoizes compound content hashes (bucketed table, native-`hash`
+bucket index for distribution only, structural-`=` match, cleared on every
+structural-sig declaration so it is never stale) and short-circuits `content-eq`
+with `=`. The full harness time is unchanged (~668s; it is dominated by the
+reduction-bound differentiate-back corpus), but hash-bound interactive use
+(dispatch / Orderless canonical sort / equality) is faster.
+
 New RHS heads are whitelisted in `src/rule.shen` (`phase1-globals`); new test
 files are wired into `load.shen` and `run-all-tests`.
 
