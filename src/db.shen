@@ -23,7 +23,7 @@
   X -> (str X))
 
 (define compute-basis
-  Ds -> (cn "basis:" (str (hash (basis-token Ds) 1000000007))))  \\ content-derived skeleton basis id
+  Ds -> (cn "basis:" (str (cas-str-hash (basis-token Ds)))))  \\ content-derived skeleton basis id (pure-Shen hash)
 
 (define db-basis
   Db -> (compute-basis (db-datoms Db)))

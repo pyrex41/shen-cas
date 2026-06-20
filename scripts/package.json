@@ -1,0 +1,11 @@
+{
+  "name": "shen-cas-shenscript-runner",
+  "private": true,
+  "description": "Run shen-cas under the ShenScript (Shen-for-JavaScript) npm port.",
+  "scripts": {
+    "suite": "node --stack-size=60000 shenscript-run.js"
+  },
+  "dependencies": {
+    "shen-script": "^0.17"
+  }
+}

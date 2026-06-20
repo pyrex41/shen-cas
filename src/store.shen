@@ -19,19 +19,61 @@
 (define intern-store
   H Node Table -> (adjoin [H Node] Table))
 
-\\ --- Hash per task-4 policy (notes/syntax-verification.md) ---
+\\ --- Portable, order-sensitive string hash (pure Shen) ---
+\\ The host port's `hash` builtin is NOT a safe content-hash basis: on some ports
+\\ (e.g. ShenScript) it is an order-INSENSITIVE sum of char codes, so any two
+\\ strings that are permutations of each other collide (hash "Sinx" = hash "xSin").
+\\ Because content-eq is hash-keyed and compound hashes are built from concatenated
+\\ substrings, such collisions silently corrupt the intern table, the Orderless
+\\ canonical sort, and the rule dispatch index -- making guarded calculus rules
+\\ misfire. We therefore compute content hashes with a self-contained polynomial
+\\ rolling hash (base 31, large prime modulus) that depends ONLY on portable
+\\ string primitives (pos/tlstr/string->n) and integer +,-,*,< -- identical on
+\\ every Shen port, well-distributed, and order-sensitive.
+\\
+\\ The modulus is taken by bounded subtraction (no float division / no floor
+\\ builtin, which are not portable): after each step the accumulator is < prime,
+\\ so (Acc*31 + code) < 31*prime + maxcode and at most ~31 subtractions restore it.
+(define cas-hash-prime -> 1000000007)
+
+\\ N mod prime by greedy power-of-two subtraction. After each rolling step the
+\\ accumulator is < prime, so (Acc*31 + code) < 31*prime; subtracting the
+\\ descending multiples 16p,8p,4p,2p,p removes it in <=5 steps (vs ~31 for plain
+\\ repeated subtraction) -- still pure integer ops, no float/floor.
+(define cas-sub-while
+  N M -> (if (>= N M) (cas-sub-while (- N M) M) N))
+
+(define cas-hash-mod
+  N -> (let P (cas-hash-prime)
+            N1 (cas-sub-while N (* 16 P))
+            N2 (cas-sub-while N1 (* 8 P))
+            N3 (cas-sub-while N2 (* 4 P))
+            N4 (cas-sub-while N3 (* 2 P))
+            (cas-sub-while N4 P)))
+
+(define cas-str-hash
+  S -> (cas-str-hash-loop S 5381))
+
+(define cas-str-hash-loop
+  "" Acc -> Acc
+  S Acc -> (cas-str-hash-loop (tlstr S)
+                              (cas-hash-mod (+ (* Acc 31) (string->n (pos S 0))))))
+
+\\ --- Hash per task-4 policy (notes/syntax-verification.md), pure-Shen basis ---
 (define portable-atom-string
   Tag Val -> (cn (str Tag) (if (symbol? Val) (str Val) (str Val))))
 
 (define hash-atom
-  Tag Val -> (hash (portable-atom-string Tag Val) 1000000007))
+  Tag Val -> (cas-str-hash (portable-atom-string Tag Val)))
 
+\\ comma-separated so distinct arg-hash sequences cannot concatenate to the same
+\\ string (e.g. [1,23] vs [12,3] both -> "123" without a separator).
 (define hash-compound-args
   [] -> ""
-  [X | Xs] -> (cn (str X) (hash-compound-args Xs)))
+  [X | Xs] -> (cn (str X) (cn "," (hash-compound-args Xs))))
 
 (define hash-compound
-  H ArgHashes -> (hash (cn (str H) (hash-compound-args ArgHashes)) 1000000007))
+  H ArgHashes -> (cas-str-hash (cn (str H) (cn "|" (hash-compound-args ArgHashes)))))
 
 (define alpha-canonicalize
   E -> E)   \\ stub (tied to binders); scope.shen redefines for Module/With alpha-renaming before hash.
@@ -43,7 +85,7 @@
   [sym S] -> [ch (hash-atom "sym" S)]
   S -> [ch (hash-atom "sym" S)] where (symbol? S)
   [int N] -> [ch (hash-atom "int" N)]
-  [rat N D] -> [ch (hash (cn "rat" (cn (str N) (cn "/" (str D)))) 1000000007)]
+  [rat N D] -> [ch (cas-str-hash (cn "rat" (cn (str N) (cn "/" (str D)))))]
   [H | Args] -> (let Hh (content-hash* H)
                      Ah (canonical-arg-hashes H Args)
                      [ch (hash-compound (unwrap-ch Hh) (map (/. X (unwrap-ch X)) Ah))])
