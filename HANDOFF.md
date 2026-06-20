@@ -57,14 +57,42 @@ Each new builtin returns a result only on its exact domain and otherwise decline
   inert. The test uses a numeric differentiate-back oracle (sample points), which
   verifies Log/ArcTan antiderivatives that Simplify-based diff-back cannot reduce.
 
-### Performance: content-hash memo
+- **Partial-fraction integration** (`src/calc-helpers.shen`,
+  `test/test-pfrac.shen`): generalizes the rational integrator from "denominator
+  degree 2" to denominators with one or more distinct **simple** rational roots
+  plus a leftover factor that is a constant or a single **irreducible** quadratic
+  (polynomial long division first for improper inputs). Cover-up residues
+  `A_r = N(r)/D'(r)` give the `Log[x-r]` terms; the leftover quadratic reuses the
+  complete-the-square `Log + ArcTan` path. Examples: `1/(x^3-x) -> -Log[x] +
+  (1/2)Log[x-1] + (1/2)Log[x+1]`, `1/(x^3+1) -> (1/3)Log[x+1] - (1/6)Log[x^2-x+1]
+  + ArcTan piece`. Every result is verified un-foolably by recombining the
+  partial fractions over the common denominator and matching the numerator to N;
+  a disc<0 guard keeps repeated/real-root leftovers from misfiring. Degree ≥ 3
+  leftovers stay inert. The test uses a self-contained float differentiate-back
+  oracle (the ArcTan answer carries `Sqrt[3/4]`, which `reduce` cannot fold).
+
+- **Trigonometric integration** (`boot/calculus.shen`, `test/test-trigint.shen`):
+  `register-rule` antiderivatives over the bare variable — `Sec^2 -> Tan`,
+  `Csc^2 -> -Cot`, `Sec*Tan -> Sec`, `Csc*Cot -> -Csc`, `Sin*Cos -> (1/2)Sin^2`,
+  and power-reduction `Sin^2 -> x/2 - (1/2)Sin*Cos`, `Cos^2 -> x/2 +
+  (1/2)Sin*Cos`. The first five verify by Simplify-based differentiate-back; the
+  Sin^2/Cos^2 pair (which would need the Pythagorean identity) are checked by
+  content-eq against the hand-verified closed form. Product patterns bind both
+  factor arguments and guard `And[SameQ,SameQ]` so the Orderless arg order is
+  irrelevant.
+
+### Performance: reduce + content-hash memos
 
 `store.shen` memoizes compound content hashes (bucketed table, native-`hash`
 bucket index for distribution only, structural-`=` match, cleared on every
 structural-sig declaration so it is never stale) and short-circuits `content-eq`
-with `=`. The full harness time is unchanged (~668s; it is dominated by the
-reduction-bound differentiate-back corpus), but hash-bound interactive use
-(dispatch / Orderless canonical sort / equality) is faster.
+with `=`. `core.shen` adds a per-outermost-reduction memo of `reduce`/
+`normal-form` (content-hash keyed; cleared at the outermost entry via the
+`*reducing* guard so nested wired-builtin reduces SHARE it; disabled inside Block
+forks; guards reset on any escaping error). Interactive reductions are ~3x
+faster (the suite reaches the corpus at ~134s vs ~280s); the full harness is
+~563s vs ~668s (it is dominated by the reduction-bound differentiate-back
+corpus, whose distinct per-case reductions clear the per-call cache).
 
 New RHS heads are whitelisted in `src/rule.shen` (`phase1-globals`); new test
 files are wired into `load.shen` and `run-all-tests`.

@@ -67,9 +67,10 @@
           A1 (ri-check "arctan 1/(x^2+1)"      "1/(x^2+1)")
           A2 (ri-check "arctan 1/(x^2+2x+2)"   "1/(x^2+2*x+2)")
           A3 (ri-check "log+arctan (x+1)/(x^2+1)" "(x+1)/(x^2+1)")
-          \\ --- frontier: stays inert (cubic / higher denominators) ---
-          I1 (ri-check-inert "1/(x^3+1)"  "1/(x^3+1)")
-          I2 (ri-check-inert "1/(x^3-x)"  "1/(x^3-x)")
+          \\ --- frontier: stays inert (no rational roots, degree-4 leftover;
+          \\     cubics are now handled in test-pfrac.shen) ---
+          I1 (ri-check-inert "1/(x^4+1)"     "1/(x^4+1)")
+          I2 (ri-check-inert "1/(x^4+x^2+1)" "1/(x^4+x^2+1)")
           Ok (ri-all-true? [C1 T1 T2 T3 A1 A2 A3 I1 I2])
           (do (if Ok (output "rational-function integration: PASS~%")
                   (output "rational-function integration: FAIL~%"))

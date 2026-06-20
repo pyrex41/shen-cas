@@ -85,13 +85,21 @@
 \\ cleared whenever a structural signature is declared (Orderless/Flat change the
 \\ canonical arg order and thus the hash), so it is never stale. Atoms are cheap
 \\ and are not memoized.
-(set *ch-memo-buckets* 8191)
+\\ The table is also size-CAPPED (*ch-memo-cap*): without a bound it grows for the
+\\ life of the session, so late in a long run the per-bucket chains get long and
+\\ the structural-= scans dominate. When the entry count exceeds the cap we drop
+\\ the whole table (a pure cache -- only recomputation is lost), keeping chains
+\\ short and memory bounded.
+(set *ch-memo-buckets* 16381)
+(set *ch-memo-cap* 60000)
+(set *ch-memo-count* 0)
 (set *ch-memo* (vector 1))
 
 (define ch-memo-reset
   -> (let N (value *ch-memo-buckets*)
           V (vector N)
           _ (ch-memo-init V 1 N)
+          _ (set *ch-memo-count* 0)
           (set *ch-memo* V)))
 
 (define ch-memo-init
@@ -121,9 +129,14 @@
   E [[K H] | Rest] -> (if (= K E) [some H] (ch-scan-bucket E Rest)))
 
 (define ch-memo-put!
+  E H -> (do (if (> (value *ch-memo-count*) (value *ch-memo-cap*)) (ch-memo-reset) true)
+             (ch-memo-store! E H)))
+
+(define ch-memo-store!
   E H -> (let B (ch-bucket E)
               Bucket (<-vector (value *ch-memo*) B)
               _ (vector-> (value *ch-memo*) B [[E H] | Bucket])
+              _ (set *ch-memo-count* (+ (value *ch-memo-count*) 1))
               H))
 
 (define alpha-canonicalize

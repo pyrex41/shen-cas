@@ -55,6 +55,8 @@
 (load "test/test-elemlib.shen")   \\ recip-trig/hyperbolic/inverse-hyperbolic: defines run-elemlib-tests
 (load "test/test-numtheory.shen") \\ number theory: defines run-numtheory-tests
 (load "test/test-ratint.shen")    \\ rational-function integration: defines run-ratint-tests
+(load "test/test-pfrac.shen")     \\ partial-fraction integration (cubics): defines run-pfrac-tests
+(load "test/test-trigint.shen")   \\ trigonometric integration: defines run-trigint-tests
 (load "test/test-properties.shen") \\ Property-style checks beyond exact goldens
 (load "test/test-external-corpus.shen")  \\ Rubi/SymPy corpus: defines run-external-corpus-tests
 (load "test/test.shen")

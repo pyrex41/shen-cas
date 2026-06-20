@@ -206,7 +206,13 @@
 (define irat-neg? E -> (< (rat-num (as-rat E)) 0))
 
 (define irat-quadratic
-  N D V -> (irat-q1 N D V (expr->coeffs V D)))
+  N D V -> (irat-quadratic-or-general N D V (irat-q1 N D V (expr->coeffs V D))))
+
+\\ Preserve the exact degree-2 behavior: if irat-q* produced a result, use it;
+\\ otherwise fall through to the generalized cover-up partial-fraction path.
+(define irat-quadratic-or-general
+  N D V [some R] -> [some R]
+  N D V _ -> (irat-general N D V))
 
 (define irat-q1
   N D V [some Dv0] -> (irat-q2 N D V (trim-coeffs Dv0))
@@ -283,6 +289,208 @@
   [] [] -> true
   [X | Xs] [Y | Ys] -> (if (num-eq? X Y) (irat-vec-eq? Xs Ys) false)
   _ _ -> false)
+
+\\ ============================================================================
+\\ Generalized cover-up partial fractions (Wave 4 extension).
+\\
+\\ Handles a Divide[N,D] integrand whose denominator factors as
+\\     D = (lead) * Prod_i (x - r_i) * Dq
+\\ where the r_i are DISTINCT SIMPLE rational roots and Dq is either a nonzero
+\\ constant (all-linear case) or a single (possibly reducible) quadratic.
+\\ Improper inputs (deg N >= deg D) are split off via polynomial long division
+\\ and the polynomial quotient is integrated termwise.
+\\
+\\ Every candidate is VERIFIED un-foolably: the rational contributions of all the
+\\ emitted pieces are recombined over the common denominator D and the resulting
+\\ numerator vector is compared elementwise with N. If anything is off, or the
+\\ shape is unsupported, the result is [none] and the head stays inert.
+\\ ============================================================================
+(define irat-general
+  N D V -> (irat-g-coeffs N D V (expr->coeffs V N) (expr->coeffs V D)))
+
+(define irat-g-coeffs
+  N D V [some Nv0] [some Dv0] -> (irat-g-split V (trim-coeffs Nv0) (trim-coeffs Dv0))
+  N D V _ _ -> [none])
+
+\\ split off the polynomial part if improper (deg N >= deg D).
+(define irat-g-split
+  V Nv Dv -> (if (empty? Dv)
+                 [none]
+                 (if (< (coeffs-deg Nv) (coeffs-deg Dv))
+                     (irat-g-proper V Nv Dv [int 0])
+                     (irat-g-improper V Nv Dv))))
+
+(define irat-g-improper
+  V Nv Dv -> (irat-g-improper-2 V Dv (uni-divmod Nv Dv)))
+
+(define irat-g-improper-2
+  V Dv [Q R] -> (irat-g-proper V (trim-coeffs R) Dv (irat-g-polyint V Q)))
+
+\\ integrate a polynomial coeff vector termwise: sum c_i x^(i+1)/(i+1).
+(define irat-g-polyint
+  V Vec -> (irat-g-polyint-loop V (trim-coeffs Vec) 0))
+
+(define irat-g-polyint-loop
+  V [] _ -> [int 0]
+  V [C | Cs] I -> (irat-g-plus2 (irat-g-monomial V C I) (irat-g-polyint-loop V Cs (+ I 1))))
+
+(define irat-g-monomial
+  V C I -> (if (num-eq? C [int 0])
+               [int 0]
+               [(ct-times) (num-div C [int (+ I 1)]) [(ct-power) V [int (+ I 1)]]]))
+
+(define irat-g-plus2
+  [int 0] B -> B
+  A [int 0] -> A
+  A B -> [(ct-plus) A B])
+
+\\ proper case: deg N < deg D, PolyPart is the (already built) polynomial integral.
+(define irat-g-proper
+  V Nv Dv PolyPart -> (irat-g-roots V Nv Dv PolyPart (irat-g-simple-roots Dv (rational-roots Dv))))
+
+\\ keep only the SIMPLE roots: D(r)=0 (guaranteed by rational-roots) and D'(r) /= 0.
+(define irat-g-simple-roots
+  Dv Roots -> (irat-g-filter-simple (vec-deriv Dv) Roots))
+
+(define irat-g-filter-simple
+  _ [] -> []
+  Dp [R | Rs] -> (if (num-eq? (vec-eval Dp R) [int 0])
+                     (irat-g-filter-simple Dp Rs)
+                     [R | (irat-g-filter-simple Dp Rs)]))
+
+\\ Dlin = Prod (x - r) over the simple roots.
+(define irat-g-dlin
+  [] -> [[int 1]]
+  [R | Rs] -> (vec-mul [(num-mul [int -1] R) [int 1]] (irat-g-dlin Rs)))
+
+(define irat-g-roots
+  V Nv Dv PolyPart Roots
+    -> (irat-g-leftover V Nv Dv PolyPart Roots
+         (uni-divmod Dv (irat-g-dlin Roots))))
+
+\\ Dq = D / Dlin. Remainder MUST be zero (it always is for genuine factors, but
+\\ we require it explicitly for soundness).
+(define irat-g-leftover
+  V Nv Dv PolyPart Roots [Dq Rem]
+    -> (if (zero-vec? Rem)
+           (irat-g-by-degree V Nv Dv PolyPart Roots (trim-coeffs Dq))
+           [none]))
+
+(define irat-g-by-degree
+  V Nv Dv PolyPart Roots Dq
+    -> (let DegQ (coeffs-deg Dq)
+            (if (< DegQ 0)
+                [none]
+                (if (= DegQ 0)
+                    (irat-g-alllinear V Nv Dv PolyPart Roots Dq)
+                    (if (= DegQ 2)
+                        (if (irat-g-irreducible? Dq)
+                            (irat-g-quadpiece V Nv Dv PolyPart Roots Dq)
+                            [none])
+                        [none])))))
+
+\\ A degree-2 leftover is sound for the ArcTan path ONLY when it is irreducible
+\\ over R (discriminant b^2-4ac < 0). A non-negative discriminant means real roots:
+\\ a repeated root (left in Dq because the simple-root filter dropped it) or
+\\ irrational roots -- neither of which irat-arctan handles soundly (disc=0 yields
+\\ a Sqrt[0]=0 -> 0^-1 division-by-zero). Decline -> inert.
+(define irat-g-irreducible?
+  Dq -> (let A (irat-nth Dq 2)
+             B (irat-nth Dq 1)
+             C (irat-nth Dq 0)
+             Disc (num-sub (num-mul B B) (num-mul [int 4] (num-mul A C)))
+             (irat-neg? Disc)))
+
+\\ cover-up residue for a simple root r: A_r = N(r)/D'(r).
+(define irat-g-residue
+  Nv Dp R -> (num-div (vec-eval Nv R) (vec-eval Dp R)))
+
+\\ list of [R A_r] pairs.
+(define irat-g-residues
+  _ _ [] -> []
+  Nv Dp [R | Rs] -> [[R (irat-g-residue Nv Dp R)] | (irat-g-residues Nv Dp Rs)])
+
+\\ Sum of A_r Log[x - r].
+(define irat-g-logterms
+  V [] -> [int 0]
+  V [[R A] | Ps] -> (irat-g-plus2 [(ct-times) A [(ct-log) (irat-linsub V R)]]
+                                  (irat-g-logterms V Ps)))
+
+\\ --- all-linear case: D = lead * Prod (x - r_i), no leftover quadratic. ---
+(define irat-g-alllinear
+  V Nv Dv PolyPart Roots Dq
+    -> (if (empty? Roots)
+           [none]
+           (let Dp (vec-deriv Dv)
+                Res (irat-g-residues Nv Dp Roots)
+                Cand (irat-g-plus2 PolyPart (irat-g-logterms V Res))
+                (irat-g-verify V Nv Dv PolyPart Res [none] Cand))))
+
+\\ --- one IRREDUCIBLE leftover quadratic: D = lead * Prod (x - r_i) * Dq,
+\\     deg Dq = 2, disc(Dq) < 0 (guaranteed by the caller's irat-g-irreducible?). ---
+\\ (Bx + C) * Dlin = N - Sum A_r * (D / (x - r)).  Divide by Dlin to get (Bx+C),
+\\ then integrate (Bx+C)/Dq by reusing irat-arctan (Log + ArcTan, complete-square).
+(define irat-g-quadpiece
+  V Nv Dv PolyPart Roots Dq
+    -> (let Dp (vec-deriv Dv)
+            Res (irat-g-residues Nv Dp Roots)
+            Dlin (irat-g-dlin Roots)
+            BCnum (vec-sub Nv (irat-g-sum-residue-cofactors Dv Res))
+            (irat-g-quad-divide V Nv Dv PolyPart Res Dlin Dq (uni-divmod BCnum Dlin))))
+
+\\ Sum over roots of A_r * (D / (x - r)).
+(define irat-g-sum-residue-cofactors
+  _ [] -> []
+  Dv [[R A] | Ps] -> (vec-add (vec-scale A (irat-g-cofactor Dv R))
+                              (irat-g-sum-residue-cofactors Dv Ps)))
+
+\\ D / (x - r), exact (remainder is zero since r is a root). We just take the Q.
+(define irat-g-cofactor
+  Dv R -> (hd (uni-divmod Dv [(num-mul [int -1] R) [int 1]])))
+
+(define irat-g-quad-divide
+  V Nv Dv PolyPart Res Dlin Dq [BC Rem]
+    -> (if (zero-vec? Rem)
+           (irat-g-quad-emit V Nv Dv PolyPart Res Dq (trim-coeffs BC))
+           [none]))
+
+(define irat-g-quad-emit
+  V Nv Dv PolyPart Res Dq BC
+    -> (irat-g-quad-arctan V Nv Dv PolyPart Res Dq BC
+         (irat-arctan (coeffs->expr V Dq) V (irat-nth Dq 2) (irat-nth Dq 1) (irat-nth Dq 0) BC)))
+
+(define irat-g-quad-arctan
+  V Nv Dv PolyPart Res Dq BC [some QInt]
+    -> (let LogPart (irat-g-logterms V Res)
+            Cand (irat-g-plus2 PolyPart (irat-g-plus2 LogPart QInt))
+            (irat-g-verify V Nv Dv PolyPart Res [some [BC Dq]] Cand)
+        )
+  V Nv Dv PolyPart Res Dq BC _ -> [none])
+
+\\ ============================================================================
+\\ Un-foolable verification: recombine ALL rational pieces over the common
+\\ denominator D and check the numerator equals N.
+\\   each root piece  A_r/(x - r)   contributes  A_r * (D / (x - r))
+\\   the quad piece    (Bx+C)/Dq     contributes  (Bx+C) * (D / Dq) = (Bx+C)*Dlin
+\\ Sum these and compare elementwise to N. PolyPart is NOT a rational piece (it
+\\ came from the exact polynomial quotient) so it is excluded from this check;
+\\ Nv here is already the proper-part numerator (remainder of the long division).
+\\ ============================================================================
+(define irat-g-verify
+  V Nv Dv PolyPart Res QuadPiece Cand
+    -> (let RootContrib (irat-g-sum-residue-cofactors Dv Res)
+            Total (irat-g-add-quad-contrib Dv RootContrib QuadPiece)
+            (if (irat-vec-eq? (trim-coeffs Total) (trim-coeffs Nv))
+                [some (normal-form Cand)]
+                [none])))
+
+(define irat-g-add-quad-contrib
+  Dv RootContrib [none] -> RootContrib
+  Dv RootContrib [some [BC Dq]] -> (vec-add RootContrib (vec-mul BC (irat-g-cofactor-by Dv Dq))))
+
+\\ D / Dq (exact; remainder zero by construction).
+(define irat-g-cofactor-by
+  Dv Dq -> (hd (uni-divmod Dv Dq)))
 
 \\ Wired antiderivative table for forms a positional AC rule cannot match because
 \\ of the orderless canonical ordering of the inner Plus. Detection via expr->coeffs
