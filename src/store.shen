@@ -75,6 +75,57 @@
 (define hash-compound
   H ArgHashes -> (cas-str-hash (cn (str H) (cn "|" (hash-compound-args ArgHashes)))))
 
+\\ --- content-hash memo (compounds only) ------------------------------------
+\\ content-hash* is called pervasively (Orderless sort, content-eq, dispatch) and
+\\ recomputes the whole Merkle walk every time. Memoize compound hashes in a
+\\ bucketed table: the bucket index is a FAST native `hash` of a cheap, NON-
+\\ recursive structural key (used for distribution ONLY -- collisions are
+\\ harmless), and entries are matched by structural `=` (identical structure =>
+\\ identical hash, so the memo can never return a wrong value). The table is
+\\ cleared whenever a structural signature is declared (Orderless/Flat change the
+\\ canonical arg order and thus the hash), so it is never stale. Atoms are cheap
+\\ and are not memoized.
+(set *ch-memo-buckets* 8191)
+(set *ch-memo* (vector 1))
+
+(define ch-memo-reset
+  -> (let N (value *ch-memo-buckets*)
+          V (vector N)
+          _ (ch-memo-init V 1 N)
+          (set *ch-memo* V)))
+
+(define ch-memo-init
+  V I N -> (if (> I N) true (let _ (vector-> V I []) (ch-memo-init V (+ I 1) N))))
+
+\\ cheap, non-recursive bucket key (head name + arity for compounds).
+(define ch-cheap-key
+  [sym S] -> (cn "s" (str S))
+  [int N] -> (cn "i" (str N))
+  [rat N D] -> (cn "r" (cn (str N) (str D)))
+  [H | Args] -> (cn "c" (cn (ch-cheap-head H) (str (length Args))))
+  _ -> "?")
+
+(define ch-cheap-head
+  [sym S] -> (str S)
+  _ -> "@")
+
+\\ native hash is only a distribution function here; correctness is via `=`.
+(define ch-bucket
+  E -> (+ 1 (hash (ch-cheap-key E) (- (value *ch-memo-buckets*) 1))))
+
+(define ch-memo-lookup
+  E -> (ch-scan-bucket E (<-vector (value *ch-memo*) (ch-bucket E))))
+
+(define ch-scan-bucket
+  E [] -> [none]
+  E [[K H] | Rest] -> (if (= K E) [some H] (ch-scan-bucket E Rest)))
+
+(define ch-memo-put!
+  E H -> (let B (ch-bucket E)
+              Bucket (<-vector (value *ch-memo*) B)
+              _ (vector-> (value *ch-memo*) B [[E H] | Bucket])
+              H))
+
 (define alpha-canonicalize
   E -> E)   \\ stub (tied to binders); scope.shen redefines for Module/With alpha-renaming before hash.
             \\ Alpha-equivalent Module/With bodies therefore share content hashes.
@@ -86,10 +137,20 @@
   S -> [ch (hash-atom "sym" S)] where (symbol? S)
   [int N] -> [ch (hash-atom "int" N)]
   [rat N D] -> [ch (cas-str-hash (cn "rat" (cn (str N) (cn "/" (str D)))))]
+  [H | Args] -> (ch-memo-compound [H | Args])
+  _ -> [ch (hash-atom "other" 0)])
+
+\\ memoized compound hash: structural-= lookup, compute + store on miss.
+(define ch-memo-compound
+  E -> (let M (ch-memo-lookup E)
+            (if (= M [none])
+                (ch-memo-put! E (ch-compute-compound E))
+                (hd (tl M)))))
+
+(define ch-compute-compound
   [H | Args] -> (let Hh (content-hash* H)
                      Ah (canonical-arg-hashes H Args)
-                     [ch (hash-compound (unwrap-ch Hh) (map (/. X (unwrap-ch X)) Ah))])
-  _ -> [ch (hash-atom "other" 0)])
+                     [ch (hash-compound (unwrap-ch Hh) (map (/. X (unwrap-ch X)) Ah))]))
 
 (define content-hash
   E -> (content-hash* (alpha-canonicalize E)))
@@ -123,8 +184,11 @@
                      _ (set *intern-table* (intern-store Key Node (value *intern-table*)))
                      Node))))
 
+\\ Fast path: structurally identical exprs are equal without hashing (and the
+\\ `=` walk short-circuits on the first difference). Only orderless-equal-but-
+\\ not-identical forms fall through to the hash comparison.
 (define content-eq
-  A B -> (= (content-hash A) (content-hash B)))
+  A B -> (if (= A B) true (= (content-hash A) (content-hash B))))
 
 \\ Structural sig registry (immutable after first use; 5.3)
 (set *structural-sigs* [])
@@ -139,6 +203,7 @@
   Sym Attrs -> (if (sig-present? Sym)
                    (error "structural sig already declared for ~A" Sym)
                    (do (set *structural-sigs* [[Sym | Attrs] | (value *structural-sigs*)])
+                       (ch-memo-reset)   \\ Orderless/Flat change the hash -> drop stale memo entries
                        true)))
 
 (define get-structural-sig
@@ -223,4 +288,8 @@
 (define nf-store!
   Key Val -> (set *normal-form-cache* (adjoin [Key Val] (value *normal-form-cache*))))
 
-(output "store.shen loaded (Merkle hash + attrs flat/orderless canonical in content-hash path + nf memo).~%")
+\\ initialize the content-hash memo table (idempotently re-cleared on each
+\\ structural-sig declaration during boot).
+(ch-memo-reset)
+
+(output "store.shen loaded (Merkle hash + content-hash memo + attrs flat/orderless canonical + nf memo).~%")
