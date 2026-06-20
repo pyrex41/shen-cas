@@ -255,8 +255,12 @@
         (external-case (protect rubi) (protect integrate) (protect pass) "shifted-reciprocal" "1/(x+1)" "")
         \\ x/(1+x^2) -> (1/2)*Log[1+x^2] (log-derivative: Num = c*Den'; diff-back verified).
         (external-case (protect rubi) (protect integrate) (protect pass) "rational-linear-over-quadratic" "x/(1+x^2)" "")
-        (external-case (protect rubi) (protect integrate) (protect unsupported) "partial-fraction" "(x+1)/(x^2-1)" "")
-        (external-case (protect rubi) (protect integrate) (protect unsupported) "proper-rational-quadratic" "1/(x^2+2*x+2)" "")
+        \\ T3.4+: partial fractions (distinct linear, via Apart) -> sum of Logs;
+        \\ irreducible quadratic via completing the square -> ArcTan. diff-back closes
+        \\ thanks to the rational zero-combine in Simplify.
+        (external-case (protect rubi) (protect integrate) (protect pass) "partial-fraction" "(x+1)/(x^2-1)" "")
+        (external-case (protect rubi) (protect integrate) (protect pass) "proper-rational-quadratic" "1/(x^2+2*x+2)" "")
+        \\ x^3+1 = (x+1)(x^2-x+1): irreducible quadratic factor, beyond distinct-linear Apart.
         (external-case (protect rubi) (protect integrate) (protect unsupported) "rational-cubic-denominator" "1/(x^3+1)" "")
       ])
     (external-case-group "Rubi/integrate-radicals"

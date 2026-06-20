@@ -163,8 +163,20 @@
 (define integrate-after-powusub
   Integrand V -> (let A (integrate-arcsin Integrand V)
                       (if (= A [none])
-                          (integrate-by-parts Integrand V)
+                          (integrate-after-arcsin Integrand V)
                           A)))
+
+(define integrate-after-arcsin
+  Integrand V -> (let AP (integrate-apart Integrand V)
+                      (if (= AP [none])
+                          (integrate-after-apart Integrand V)
+                          AP)))
+
+(define integrate-after-apart
+  Integrand V -> (let Q (integrate-arctan-shift Integrand V)
+                      (if (= Q [none])
+                          (integrate-by-parts Integrand V)
+                          Q)))
 
 \\ Wired antiderivative table for forms a positional AC rule cannot match because
 \\ of the orderless canonical ordering of the inner Plus. Detection via expr->coeffs
@@ -541,7 +553,118 @@
                 Groups (plus-groups Args [])
                Addends0 (drop-zeros (map (/. G (group->addend G)) Groups))
                Addends (pyth-fold-addends Addends0)
-               (rebuild-nary (ct-plus) Addends [int 0])))
+               (rat-zero-or (rebuild-nary (ct-plus) Addends [int 0]) Addends)))
+
+\\ -------------------- rational zero-combine (diff-back closure) ---------------
+\\ After like-term collection, if the rebuilt Plus still contains negative-power
+\\ factors (rational structure) and is univariate, combine ALL addends over a
+\\ common denominator (as coeff vectors) and -- ONLY IF the combined numerator is
+\\ the zero polynomial -- return [int 0]. Otherwise return the rebuilt expr
+\\ unchanged. Sound + monotonic: only a genuinely-zero rational sum is rewritten;
+\\ every nonzero expression keeps its collected form. This is what lets the
+\\ differentiate-back of partial-fraction / shifted-ArcTan integrals reduce to 0.
+(define rat-zero-or
+  Built Addends -> (if (rat-has-neg-power? Addends)
+                       (rat-try-collapse Built Addends (dedup-syms (free-sym-names Built)))
+                       Built))
+
+(define rat-try-collapse
+  Built Addends [Name] -> (rat-finish Built (rat-combine [sym Name] Addends))
+  Built Addends _ -> Built)
+
+(define rat-finish
+  Built [some Num] -> (if (vec-zero? Num) [int 0] Built)
+  Built [none] -> Built)
+
+(define vec-zero?
+  V -> (empty? (trim-coeffs V)))
+
+\\ combine all addends into ONE fraction over a common denominator; return the
+\\ numerator [some NumVec], or [none] if any addend is not univariate-rational.
+(define rat-combine
+  V Addends -> (rat-combine-loop V Addends [[int 0]] [[int 1]]))
+
+(define rat-combine-loop
+  V [] AccNum AccDen -> [some AccNum]
+  V [A | As] AccNum AccDen -> (rat-combine-step V As AccNum AccDen (rat-addend->frac V A)))
+
+(define rat-combine-step
+  V As AccNum AccDen [some [TN TD]] -> (rat-combine-loop V As
+                                          (vec-add (vec-mul AccNum TD) (vec-mul TN AccDen))
+                                          (vec-mul AccDen TD))
+  V As AccNum AccDen _ -> [none])
+
+\\ addend -> [some [NumVec DenVec]] (univariate rational in V) / [none].
+\\ (Named rat-addend->frac to avoid colliding with polyalg's addend->frac.)
+\\ flatten-times-arg fully flattens a (possibly nested) Times into its factor list.
+(define rat-addend->frac
+  V A -> (af-loop V (flatten-times-arg A) [[int 1]] [[int 1]]))
+
+(define af-loop
+  V [] Num Den -> [some [Num Den]]
+  V [F | Fs] Num Den -> (af-step V Fs Num Den (af-classify V F)))
+
+(define af-step
+  V Fs Num Den [0 NV] -> (af-loop V Fs (vec-mul Num NV) Den)
+  V Fs Num Den [1 DV] -> (af-loop V Fs Num (vec-mul Den DV))
+  V Fs Num Den _ -> [none])
+
+\\ classify a factor: Power[poly, negative-int] -> [1 DenVec]; numeric/polynomial
+\\ (incl. positive powers) -> [0 NumVec]; anything else (e.g. fractional power,
+\\ transcendental) -> [none] (so the whole addend declines).
+(define af-classify
+  V F -> (af-class V F (af-den-of V F)))
+
+(define af-den-of
+  V [H B E] -> (af-den-pow V B E) where (power-head? H)
+  V _ -> [none])
+
+(define af-den-pow
+  V B [int N] -> (if (< N 0) (af-den-raise V B (- 0 N)) [none])
+  V B _ -> [none])
+
+(define af-den-raise
+  V B K -> (af-den-raise-2 (expr->coeffs V B) K))
+
+(define af-den-raise-2
+  [some BV] K -> [some (vec-pow BV K)]
+  _ K -> [none])
+
+(define af-class
+  V F [some DV] -> [1 DV]
+  V F _ -> (af-class-num (expr->coeffs V F)))
+
+(define af-class-num
+  [some NV] -> [0 NV]
+  _ -> [none])
+
+(define vec-pow
+  BV 1 -> BV
+  BV K -> (vec-mul BV (vec-pow BV (- K 1))))
+
+(define rat-has-neg-power?
+  [] -> false
+  [A | As] -> (if (expr-has-neg-power? A) true (rat-has-neg-power? As)))
+
+(define expr-has-neg-power?
+  [sym _] -> false
+  [int _] -> false
+  [rat _ _] -> false
+  [H B E] -> (rat-np-power H B E) where (power-head? H)
+  [_ | Args] -> (expr-any-neg-power? Args)
+  _ -> false)
+
+(define rat-np-power
+  H B E -> (if (neg-num? E) true (if (expr-has-neg-power? B) true (expr-has-neg-power? E))))
+
+(define expr-any-neg-power?
+  [] -> false
+  [A | As] -> (if (expr-has-neg-power? A) true (expr-any-neg-power? As)))
+
+(define neg-num?
+  [int N] -> (< N 0) where (number? N)
+  [rat N D] -> (< N 0) where (and (number? N) (number? D))
+  _ -> false)
 
 \\ -------------------- Times: gather equal bases into Power ---------------------
 \\ Each factor -> [Base Exp]; a Power[b,e] factor contributes (b,e), else (f,1).
@@ -1027,5 +1150,130 @@
   Arg V -> (let R [[sym (protect ArcSin)] V]
                 F [(ct-divide) [int 1] [(ct-power) Arg [rat 1 2]]]
                 (if (integ-diffback-ok? R F V) [some R] [none])))
+
+\\ ---- partial-fraction integral: ∫P/Q = sum_i A_i Log[x-r_i] (distinct linear) -
+\\ Reuses Apart's exact recombination gate to decompose, integrates each simple
+\\ pole to a Log, and commits ONLY IF the whole differentiate-back reduces to 0
+\\ (now possible thanks to the rational zero-combine in Simplify). Declines -> [none].
+(define integrate-apart
+  [[sym S] Num Den] V -> (iapart-divide (str S) Num Den V)
+  _ _ -> [none])
+
+(define iapart-divide
+  "Divide" Num Den V -> (iapart-decomp Num Den V (apart-builtin [(ct-divide) Num Den]))
+  _ _ _ _ -> [none])
+
+(define iapart-decomp
+  Num Den V [none] -> [none]
+  Num Den V [some Decomp] -> (iapart-anti V [(ct-divide) Num Den] (iapart-logs (apart-plus-flatten Decomp))))
+
+(define apart-plus-flatten
+  [[sym S] | Args] -> Args where (plus-head? [sym S])
+  T -> [T])
+
+(define iapart-logs
+  Terms -> (iapart-logs-loop Terms []))
+
+(define iapart-logs-loop
+  [] Acc -> [some (reverse Acc)]
+  [T | Ts] Acc -> (iapart-logs-step Ts Acc (iapart-log-term T)))
+
+(define iapart-logs-step
+  Ts Acc [some L] -> (iapart-logs-loop Ts [L | Acc])
+  Ts Acc _ -> [none])
+
+\\ Apart term A*(x-r)^-1 (or bare (x-r)^-1) -> A*Log[(x-r)].
+(define iapart-log-term
+  [[sym P] Lin [int -1]] -> (iapart-mk [int 1] Lin) where (power-head? [sym P])
+  [[sym T] A [[sym P] Lin [int -1]]] -> (iapart-mk A Lin) where (rat-apart-times? T P)
+  _ -> [none])
+
+(define rat-apart-times?
+  T P -> (if (times-head? [sym T]) (power-head? [sym P]) false))
+
+(define iapart-mk
+  A Lin -> (if (num-eq? A [int 1])
+               [some [[sym (protect Log)] Lin]]
+               [some [(ct-times) A [[sym (protect Log)] Lin]]]))
+
+(define iapart-anti
+  V Integrand [none] -> [none]
+  V Integrand [some Antis] -> (iapart-gate V Integrand (iapart-sum Antis)))
+
+(define iapart-sum
+  [A] -> A
+  As -> [(ct-plus) | As])
+
+(define iapart-gate
+  V Integrand R -> (if (integ-diffback-ok? R Integrand V) [some R] [none]))
+
+\\ ---- irreducible-quadratic reciprocal: ∫1/(a x^2+b x+c) = (1/(a k))ArcTan[(x+h)/k]
+\\ via completing the square, where h=b/(2a) and k=Sqrt[c/a-(b/2a)^2]. Emits only
+\\ when k is an exact rational (perfect-square completion) and k^2>0 (irreducible);
+\\ diff-back-gated (closes via the rational zero-combine). Else INERT.
+(define integrate-arctan-shift
+  [[sym S] Num Den] V -> (iarc-divide (str S) Num Den V)
+  _ _ -> [none])
+
+(define iarc-divide
+  "Divide" [int 1] Den V -> (iarc-on V Den (expr->coeffs V Den))
+  _ _ _ _ -> [none])
+
+(define iarc-on
+  V Den [some [C B A]] -> (iarc-k V Den A
+                                 (num-div B (num-mul [int 2] A))
+                                 (num-sub (num-div C A)
+                                          (num-div (num-mul B B) (num-mul [int 4] (num-mul A A)))))
+  V Den _ -> [none])
+
+(define iarc-k
+  V Den A H K2 -> (if (positive-expr? K2)
+                      (iarc-emit V Den A H (rat-sqrt K2))
+                      [none]))
+
+(define iarc-emit
+  V Den A H [some K] -> (iarc-gate V Den (iarc-coeff (num-div [int 1] (num-mul A K))
+                                                     [[sym (protect ArcTan)] (iarc-arg V H K)]))
+  V Den A H _ -> [none])
+
+\\ argument (x+H)/K, built clean (no Divide-by-1 / Plus-of-0 junk that fails to
+\\ reduce and would break the diff-back match).
+(define iarc-arg
+  V H K -> (iarc-divK (iarc-plusH V H) K))
+
+(define iarc-plusH
+  V H -> (if (num-eq? H [int 0]) V [(ct-plus) V H]))
+
+(define iarc-divK
+  Base K -> (if (num-eq? K [int 1]) Base [(ct-divide) Base K]))
+
+(define iarc-coeff
+  C Atan -> (if (num-eq? C [int 1]) Atan [(ct-times) C Atan]))
+
+(define iarc-gate
+  V Den R -> (if (integ-diffback-ok? R [(ct-divide) [int 1] Den] V) [some R] [none]))
+
+\\ exact rational square root: [some K] if K*K == Q exactly, else [none].
+(define rat-sqrt
+  [int N] -> (rat-sqrt-make (isqrt-exact N) [int 1])
+  [rat N D] -> (rat-sqrt-rat (isqrt-exact N) (isqrt-exact D))
+  _ -> [none])
+
+(define rat-sqrt-rat
+  [some SN] [some SD] -> [some (make-rat SN SD)]
+  _ _ -> [none])
+
+(define rat-sqrt-make
+  [some SN] _ -> [some [int SN]]
+  _ _ -> [none])
+
+\\ exact integer sqrt: [some r] if r*r=N (N>=0), else [none]. Bounded loop.
+(define isqrt-exact
+  N -> (if (< N 0) [none] (isqrt-loop N 0)))
+
+(define isqrt-loop
+  N I -> (if (> (* I I) N)
+             [none]
+             (if (= (* I I) N) [some I] (isqrt-loop N (+ I 1)))))
 
 (output "calc-helpers.shen loaded (SameQ/UnsameQ/FreeQ/NumberQ/Positive/And/Simplify + free-of? + collect-like-terms + integrate-by-parts).~%")
