@@ -14,10 +14,35 @@
 \\ function symbol, so route reduce/normal-form through reduce-via/normal-form-via.
 \\ ----------------------------------------------------------------------------
 (define reduce-ref
-  E -> (reduce-db (value *db*) E))
+  E -> (if (value *reducing*)
+           (reduce-db (value *db*) E)
+           (reduce-outermost E)))
+
+(define reduce-outermost
+  E -> (let _ (set *reducing* true)
+            _ (set *in-block* false)
+            _ (reduce-memo-clear)
+            R (trap-error (reduce-db (value *db*) E) (/. Er (rmemo-fail Er)))
+            _ (set *reducing* false)
+            R))
 
 (define normal-form-ref
-  E -> (normal-form-db (value *db*) E))
+  E -> (if (value *reducing*)
+           (normal-form-db (value *db*) E)
+           (normal-form-outermost E)))
+
+(define normal-form-outermost
+  E -> (let _ (set *reducing* true)
+            _ (set *in-block* false)
+            _ (reduce-memo-clear)
+            R (trap-error (normal-form-db (value *db*) E) (/. Er (rmemo-fail Er)))
+            _ (set *reducing* false)
+            R))
+
+\\ on any error escaping a reduction, reset the guards before re-raising so a
+\\ trapped error can never leave the memo permanently disabled or mis-scoped.
+(define rmemo-fail
+  Er -> (do (set *reducing* false) (set *in-block* false) (error (error-to-string Er))))
 
 (define reduce-compiled
   E -> E )
@@ -48,6 +73,54 @@
 \\ ----------------------------------------------------------------------------
 (set *max-eval-steps* 1000)
 (set *listable-on* false)   \\ gated until List is bootstrapped (invariant 3)
+
+\\ ----------------------------------------------------------------------------
+\\ Reduce memo (per outermost reduction; content-hash keyed).
+\\ Within a single top-level reduce the rule db is CONSTANT (reduction never
+\\ registers rules), so caching reduced subexpressions by structure is sound and
+\\ basis-independent. The cache is cleared when the OUTERMOST reduce/normal-form
+\\ is entered (the *reducing* guard lets nested wired-builtin reduce calls SHARE
+\\ it instead of clearing), and it is DISABLED inside a Block fork (whose child db
+\\ differs). Bucket index is a fast native hash of a cheap key (distribution
+\\ only); entries are matched by structural `=`, so a collision can never return a
+\\ wrong result. This is the reduction-bound complement to the content-hash memo.
+\\ ----------------------------------------------------------------------------
+(set *reduce-memo-buckets* 4096)
+(set *reduce-memo* (vector 1))
+(set *reducing* false)
+(set *in-block* false)
+
+(define reduce-memo-clear
+  -> (let N (value *reduce-memo-buckets*)
+          V (vector N)
+          _ (rmemo-init V 1 N)
+          (set *reduce-memo* V)))
+
+(define rmemo-init
+  V I N -> (if (> I N) true (let _ (vector-> V I []) (rmemo-init V (+ I 1) N))))
+
+(define rmemo-bucket
+  E -> (+ 1 (hash (ch-cheap-key E) (- (value *reduce-memo-buckets*) 1))))
+
+(define rmemo-get
+  E -> (rmemo-scan E (<-vector (value *reduce-memo*) (rmemo-bucket E))))
+
+(define rmemo-scan
+  E [] -> [none]
+  E [[K R] | Rest] -> (if (= K E) [some R] (rmemo-scan E Rest)))
+
+(define rmemo-put!
+  E R -> (let B (rmemo-bucket E)
+              Bk (<-vector (value *reduce-memo*) B)
+              _ (vector-> (value *reduce-memo*) B [[E R] | Bk])
+              R))
+
+\\ memo only when actively reducing the global db and NOT inside a block fork;
+\\ atoms reduce trivially so they skip the cache.
+(define rmemo-active?
+  E -> (if (value *reducing*)
+           (if (value *in-block*) false (expr-compound? E))
+           false))
 
 \\ ----------------------------------------------------------------------------
 \\ Dispatch
@@ -174,7 +247,15 @@
 \\ Fixed-point driver with *max-eval-steps* guard.
 \\ ----------------------------------------------------------------------------
 (define reduce-db
-  Db E -> (reduce-fixpoint Db E (value *max-eval-steps*)))
+  Db E -> (if (rmemo-active? E)
+              (reduce-db-memoized Db E)
+              (reduce-fixpoint Db E (value *max-eval-steps*))))
+
+(define reduce-db-memoized
+  Db E -> (let Hit (rmemo-get E)
+               (if (= Hit [none])
+                   (rmemo-put! E (reduce-fixpoint Db E (value *max-eval-steps*)))
+                   (hd (tl Hit)))))
 
 (define reduce-fixpoint
   Db E 0 -> (do (output "WARNING: *max-eval-steps* exceeded; returning ~A~%" (pretty-expr E)) E)
@@ -218,10 +299,16 @@
   [[sym block] _ _] -> true
   _ -> false)
 
+\\ Block evaluates Body under a forked child db whose basis differs from the
+\\ memo's; disable the memo for the duration so no parent-db result is reused.
 (define reduce-block
   Db [[sym block] Binds Body] ->
     (let ChildDb (apply-block-binds Db Binds)
-         (reduce-db ChildDb Body))
+         Saved (value *in-block*)
+         _ (set *in-block* true)
+         R (reduce-db ChildDb Body)
+         _ (set *in-block* Saved)
+         R)
   Db E -> E)
 
 (define apply-block-binds
@@ -274,4 +361,6 @@
   E -> (let Ign (demo-register-arith)
             (reduce E)))
 
-(output "core.shen (eval-step fixpoint evaluator + arith hook + seam) loaded.~%")
+(reduce-memo-clear)   \\ initialize the reduce memo table
+
+(output "core.shen (eval-step fixpoint evaluator + arith hook + reduce memo + seam) loaded.~%")
