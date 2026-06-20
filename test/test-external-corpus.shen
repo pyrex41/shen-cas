@@ -216,7 +216,11 @@
       [
         (external-case (protect rubi) (protect integrate) (protect inert) "fresnel-shape" "Sin[x^2]" "")
         (external-case (protect rubi) (protect integrate) (protect inert) "unknown-function" "ExtUnknown[x]" "")
-        (external-case (protect rubi) (protect integrate) (protect inert) "sin-squared" "Sin[x]^2" "")
+        \\ Sin[x]^2 is now integrated (power reduction) and verified in
+        \\ test-trigint.shen; the corpus's Simplify-based differentiate-back oracle
+        \\ cannot reduce its x/2 - (1/2)Sin*Cos result to 0 (needs Sin^2+Cos^2=1),
+        \\ so it is skipped here rather than asserted inert.
+        (external-case (protect rubi) (protect integrate) (protect unsupported) "sin-squared" "Sin[x]^2" "")
         (external-case (protect rubi) (protect integrate) (protect inert) "exp-quadratic" "Exp[x^2]" "")
         (external-case (protect rubi) (protect integrate) (protect inert) "log" "Log[x]" "")
         (external-case (protect rubi) (protect integrate) (protect inert) "tan" "Tan[x]" "")
