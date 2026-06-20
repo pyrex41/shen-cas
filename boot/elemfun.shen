@@ -25,14 +25,36 @@
 (boot-declare-elem (protect ArcSin))
 (boot-declare-elem (protect ArcCos))
 (boot-declare-elem (protect ArcTan))
+\\ Elementary-library expansion: reciprocal-trig, hyperbolic, inverse-hyperbolic.
+(boot-declare-elem (protect Cot))
+(boot-declare-elem (protect Csc))
+(boot-declare-elem (protect Sinh))
+(boot-declare-elem (protect Cosh))
+(boot-declare-elem (protect Tanh))
+(boot-declare-elem (protect Coth))
+(boot-declare-elem (protect Sech))
+(boot-declare-elem (protect Csch))
+(boot-declare-elem (protect ArcSinh))
+(boot-declare-elem (protect ArcCosh))
+(boot-declare-elem (protect ArcTanh))
 (boot-declare-elem (protect D))
 (boot-declare-elem (protect Integrate))
 
 \\ --- exact-value table (each RHS a literal; unimpeachable) ---
 (register-rule (rule [[sym (protect Sin)] [int 0]] [int 0]))
 (register-rule (rule [[sym (protect Cos)] [int 0]] [int 1]))
+(register-rule (rule [[sym (protect Tan)] [int 0]] [int 0]))
 (register-rule (rule [[sym (protect Exp)] [int 0]] [int 1]))
 (register-rule (rule [[sym (protect Log)] [int 1]] [int 0]))
+\\ Hyperbolic / inverse-hyperbolic exact values at 0 (branch-safe; undefined-at-0
+\\ functions Cot/Csc/Coth/Csch are OMITTED so they stay inert there).
+(register-rule (rule [[sym (protect Sinh)] [int 0]] [int 0]))
+(register-rule (rule [[sym (protect Cosh)] [int 0]] [int 1]))
+(register-rule (rule [[sym (protect Tanh)] [int 0]] [int 0]))
+(register-rule (rule [[sym (protect Sech)] [int 0]] [int 1]))
+(register-rule (rule [[sym (protect ArcSinh)] [int 0]] [int 0]))
+(register-rule (rule [[sym (protect ArcTanh)] [int 0]] [int 0]))
+(register-rule (rule [[sym (protect ArcCosh)] [int 1]] [int 0]))
 (register-rule (rule [[sym (protect Sqrt)] [int 0]] [int 0]))
 (register-rule (rule [[sym (protect Sqrt)] [int 1]] [int 1]))
 \\ General radical normalization: Sqrt[u] -> u^(1/2). Registered AFTER the exact

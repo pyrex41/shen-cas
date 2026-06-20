@@ -1,8 +1,58 @@
 # Handoff
 
-Date: 2026-06-18
+## Scope expansion + portable hash + in-environment oracle (2026-06-20)
 
-## Final State
+Branch: `claude/shen-cas-scope-positioning-1fmzo8`.
+
+### Portable content hash (cross-port soundness fix)
+
+`content-eq` is hash-keyed, and the host port's `hash` builtin is **not** a safe
+basis for it. On ShenScript (Shen-for-JavaScript) `hash` is an order-INSENSITIVE
+char sum (`hash "Sinx" == hash "xSin"`), so distinct expressions collide and the
+intern table / Orderless sort / dispatch index silently corrupt — guarded
+calculus rules then misfire. `store.shen` now computes content hashes with a
+self-contained polynomial rolling hash (base 31, large-prime modulus by bounded
+power-of-two subtraction — no float/floor), identical and well-distributed on
+every Shen port. This also makes genuine cross-port (bifrost) agreement possible.
+
+### Running the suite with no native Shen (ShenScript oracle)
+
+GitHub access is not required. The kernel + full harness run under the
+`shen-script` npm package with only Node:
+
+```sh
+cd scripts && npm install shen-script@^0.17
+cd .. && ulimit -s unlimited && node --stack-size=60000 scripts/shenscript-run.js
+```
+
+The CAS evaluator is deeply recursive, so the large `--stack-size` (≈ the 256 MB
+the native ports use) is required. Expected tail: `ALL PASS`. The pure-Shen hash
+makes the heavy corpus/series phase slow (several minutes) but it completes.
+
+### New capability layers (SymPy-guided breadth, all SOUND > COMPLETE)
+
+Each new builtin returns a result only on its exact domain and otherwise declines
+([none]) so the head stays inert — never a wrong/float answer.
+
+- **Elementary & number-theory functions** (`src/numfun.shen`,
+  `test/test-numfun.shen`): `Abs Sign Floor Ceiling Round IntegerPart
+  FractionalPart Mod Quotient GCD LCM Factorial Binomial Max Min`.
+- **Number theory** (`src/numfun.shen`, `test/test-numtheory.shen`): `EvenQ OddQ
+  Divisible CoprimeQ PrimeQ NextPrime Prime Fibonacci PowerMod` (bounded
+  primality/sequences so they never hang; decline beyond the bound).
+- **Elementary differential library** (`boot/elemfun.shen`, `boot/calculus.shen`,
+  `test/test-elemlib.shen`): reciprocal-trig + hyperbolic + inverse-hyperbolic
+  heads `Cot Csc Sinh Cosh Tanh Coth Sech Csch ArcSinh ArcCosh ArcTanh` with
+  exact values, chain-aware derivative rules, and the sound integrals
+  ∫Sinh=Cosh, ∫Cosh=Sinh (incl. linear-argument u-substitution). Verified by
+  direct `Simplify[D[F]-expected]==0` and differentiate-back.
+
+New RHS heads are whitelisted in `src/rule.shen` (`phase1-globals`); new test
+files are wired into `load.shen` and `run-all-tests`.
+
+---
+
+## Final State (prior handoff, 2026-06-18)
 
 The active branch is `cas-evaluator-buildout`.
 

@@ -110,6 +110,18 @@
   "Binomial"       [A B] -> (nf-binomial A B)
   "Max"            Args  -> (nf-max Args)
   "Min"            Args  -> (nf-min Args)
+  \\ Number theory (src/numfun.shen): decidable integer predicates + bounded
+  \\ primality / sequences. Decline ([none]) -> inert outside the integer domain,
+  \\ on int64 overflow, or beyond the trial bound. SOUND > COMPLETE.
+  "EvenQ"     [E]     -> (nf-evenq E)
+  "OddQ"      [E]     -> (nf-oddq E)
+  "Divisible" [A B]   -> (nf-divisible A B)
+  "CoprimeQ"  [A B]   -> (nf-coprimeq A B)
+  "PrimeQ"    [E]     -> (nf-primeq E)
+  "NextPrime" [E]     -> (nf-nextprime E)
+  "Prime"     [E]     -> (nf-prime E)
+  "Fibonacci" [E]     -> (nf-fibonacci E)
+  "PowerMod"  [A B M] -> (nf-powermod A B M)
   _ _ -> [none])
 
 \\ SCUD 21 wired Integrate dispatch: position-independent constant-factor
@@ -207,9 +219,11 @@
   _ _ -> [none])
 
 (define lusub-by-name
-  "Sin" Arg V -> (lusub-emit "Sin" Arg V)
-  "Cos" Arg V -> (lusub-emit "Cos" Arg V)
-  "Exp" Arg V -> (lusub-emit "Exp" Arg V)
+  "Sin"  Arg V -> (lusub-emit "Sin" Arg V)
+  "Cos"  Arg V -> (lusub-emit "Cos" Arg V)
+  "Exp"  Arg V -> (lusub-emit "Exp" Arg V)
+  "Sinh" Arg V -> (lusub-emit "Sinh" Arg V)
+  "Cosh" Arg V -> (lusub-emit "Cosh" Arg V)
   _ _ _ -> [none])
 
 (define lusub-emit
@@ -223,9 +237,11 @@
 
 \\ (1/a) * G[arg], G the bare antiderivative: Sin->-Cos, Cos->Sin, Exp->Exp.
 (define lusub-form
-  "Sin" Arg A -> [(ct-times) [int -1] [(ct-power) A [int -1]] [[sym (protect Cos)] Arg]]
-  "Cos" Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Sin)] Arg]]
-  "Exp" Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Exp)] Arg]])
+  "Sin"  Arg A -> [(ct-times) [int -1] [(ct-power) A [int -1]] [[sym (protect Cos)] Arg]]
+  "Cos"  Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Sin)] Arg]]
+  "Exp"  Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Exp)] Arg]]
+  "Sinh" Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Cosh)] Arg]]
+  "Cosh" Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Sinh)] Arg]])
 
 \\ constant-factor pull-out: partition a Times integrand into the product of
 \\ x-free factors (Const) and the x-dependent rest (Rest). Fires only when there

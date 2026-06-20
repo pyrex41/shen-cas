@@ -23,6 +23,11 @@
       (protect Sin) (protect Cos) (protect Tan) (protect Sec)
       (protect Exp) (protect Log) (protect Sqrt)
       (protect ArcSin) (protect ArcCos) (protect ArcTan)
+      \\ Elementary-library expansion: reciprocal-trig, hyperbolic, inverse-hyperbolic
+      \\ heads emitted by the new D/Integrate rules (RHS surface for bindings-cover?).
+      (protect Cot) (protect Csc)
+      (protect Sinh) (protect Cosh) (protect Tanh) (protect Coth) (protect Sech) (protect Csch)
+      (protect ArcSinh) (protect ArcCosh) (protect ArcTanh)
       \\ SCUD 19 Wave D: Solve polynomial equations + the Equal head from '=='.
       (protect Equal) (protect Solve)
       \\ SCUD 20 Wave E: Taylor Series + Limit heads.
