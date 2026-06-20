@@ -57,6 +57,17 @@
     ["rat-int-normalize" "4/2"]
     ["rat-negative" "-3/4"]
     ["rat-paren-negative" "(-3)/4"]
+    \\ decimal literals parse to EXACT rationals (0.2 -> 1/5) and round-trip
+    \\ structurally through the printer (which renders them as N/D).
+    ["dec-half" "0.5"]
+    ["dec-leading-dot" ".25"]
+    ["dec-int-part" "1.5"]
+    ["dec-trailing-zeros" "0.50"]
+    ["dec-many-digits" "3.14159"]
+    ["dec-neg" "-0.5"]
+    ["dec-implicit-symbol" "0.2x"]
+    ["dec-implicit-int-symbol" "50000x0.2"]
+    ["dec-times" "0.5*x"]
     ["whitespace" " ( a + b ) * c "]
 
     \\ precedence and associativity
@@ -151,6 +162,19 @@
           \\ rational literals normalize at read time
           C3c (content-eq (parse-expr-string "6/4") (make-rat 3 2))
           C3d (content-eq (parse-expr-string "4/2") [int 2])
+          \\ decimal literals parse to exact rationals: 0.5 -> 1/2, .25 -> 1/4,
+          \\ 1.5 -> 3/2, and 0.2 reduces to 1/5 at read time.
+          Cd1 (rt-case "dec-half" "0.5" (make-rat 1 2))
+          Cd2 (content-eq (parse-expr-string ".25") (make-rat 1 4))
+          Cd3 (content-eq (parse-expr-string "1.5") (make-rat 3 2))
+          Cd4 (content-eq (parse-expr-string "0.2") (make-rat 1 5))
+          \\ -0.5 -> -1/2 ; trailing zeros normalize (0.50 -> 1/2)
+          Cd5 (content-eq (parse-expr-string "-0.5") (make-rat -1 2))
+          Cd6 (content-eq (parse-expr-string "0.50") (make-rat 1 2))
+          \\ implicit multiplication accepts a decimal coefficient: 0.2x -> Times[1/5, x]
+          \\ (parse is binary/nested; the evaluator does the numeric folding, not the reader).
+          Cd7 (content-eq (parse-expr-string "0.2x")
+                          [[sym (intern "Times")] (make-rat 1 5) [sym (intern "x")]])
           C4 (rt-case "sym" "x" [sym (intern "x")])
           \\ applications
           C5 (rt-case "app1" "f[x]" [[sym (intern "f")] [sym (intern "x")]])
@@ -203,10 +227,11 @@
           RegOk (trap-error (do (register-rule R) true) (/. E false))
           C16 RegOk
           FuzzOk (run-parser-printer-fuzz-corpus)
-          Ok (every (/. X X) [C1 C2 C3 C3b C3c C3d C4 C5 C6 C7 C8 C9 C10 C11 C12
+          Ok (every (/. X X) [C1 C2 C3 C3b C3c C3d Cd1 Cd2 Cd3 Cd4 Cd5 Cd6 Cd7
+                              C4 C5 C6 C7 C8 C9 C10 C11 C12
                               C12a C12b C12c C12d C13 C14 C15 C16 FuzzOk])
-          (do (output "16RT: int=~A neg=~A rat=~A rat-print=~A rat-norm=~A rat-int=~A sym=~A app=~A nested=~A prec1=~A prec2=~A pow=~A parens=~A imult=~A div=~A sub-int=~A sub-sym=~A sub-coeff=~A unary-pow=~A x_=~A x__=~A x___=~A rule-reg=~A~%"
-                      C1 C2 C3 C3b C3c C3d C4 C5 C6 C7 C8 C9 C10 C11 C12 C12a C12b C12c C12d C13 C14 C15 C16)
+          (do (output "16RT: int=~A neg=~A rat=~A rat-print=~A rat-norm=~A rat-int=~A dec=~A/~A/~A/~A/~A/~A/~A sym=~A app=~A nested=~A prec1=~A prec2=~A pow=~A parens=~A imult=~A div=~A sub-int=~A sub-sym=~A sub-coeff=~A unary-pow=~A x_=~A x__=~A x___=~A rule-reg=~A~%"
+                      C1 C2 C3 C3b C3c C3d Cd1 Cd2 Cd3 Cd4 Cd5 Cd6 Cd7 C4 C5 C6 C7 C8 C9 C10 C11 C12 C12a C12b C12c C12d C13 C14 C15 C16)
               (if Ok (output "reader/printer (SCUD 16): PASS~%")
                   (output "reader/printer (SCUD 16): FAIL~%"))
               Ok)))
