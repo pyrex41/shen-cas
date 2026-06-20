@@ -1096,7 +1096,7 @@
                     (run-performance-guard-tests)
                     (run-calculus-tests) (run-reader-printer-tests)
                     (run-poly-tests) (run-polyalg-tests) (run-solve-tests)
-                    (run-series-tests) (run-property-tests)
+                    (run-series-tests) (run-numfun-tests) (run-property-tests)
                     (run-external-corpus-tests))
             (do (if Ok (output "~%ALL PASS~%") (output "~%SOME FAIL~%")) Ok)))
 

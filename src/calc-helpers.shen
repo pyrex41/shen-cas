@@ -92,6 +92,24 @@
   \\ substitution / terminating L'Hopital. SOUND > COMPLETE.
   "Series" Args -> (series-builtin Args)
   "Limit"  Args -> (limit-builtin Args)
+  \\ Elementary & number-theory function layer (src/numfun.shen). Each declines
+  \\ ([none]) -> the head stays inert when the argument is symbolic / outside the
+  \\ exact numeric domain / on int64 overflow. SOUND > COMPLETE.
+  "Abs"            [E]   -> (nf-abs E)
+  "Sign"           [E]   -> (nf-sign E)
+  "Floor"          [E]   -> (nf-floor E)
+  "Ceiling"        [E]   -> (nf-ceiling E)
+  "Round"          [E]   -> (nf-round E)
+  "IntegerPart"    [E]   -> (nf-intpart E)
+  "FractionalPart" [E]   -> (nf-fracpart E)
+  "Mod"            [A B] -> (nf-mod A B)
+  "Quotient"       [A B] -> (nf-quotient A B)
+  "GCD"            Args  -> (nf-gcd Args)
+  "LCM"            Args  -> (nf-lcm Args)
+  "Factorial"      [E]   -> (nf-factorial E)
+  "Binomial"       [A B] -> (nf-binomial A B)
+  "Max"            Args  -> (nf-max Args)
+  "Min"            Args  -> (nf-min Args)
   _ _ -> [none])
 
 \\ SCUD 21 wired Integrate dispatch: position-independent constant-factor
