@@ -101,6 +101,11 @@
   \\ substitution / terminating L'Hopital. SOUND > COMPLETE.
   "Series" Args -> (series-builtin Args)
   "Limit"  Args -> (limit-builtin Args)
+  \\ GAUSSIAN WAVE 3: option put moment E[P^x] derived from the normal-form
+  \\ integral (binomial-expand + general-(a,b) Gaussian half-line lemma +
+  \\ discount). Declines ([none]) -> head stays inert unless X is a positive
+  \\ int literal and the per-term gates all fire. Closed form NEVER pasted.
+  "ExpectationPutNormal" [X K A B R T V] -> (expect-put-normal X K A B R T V)
   _ _ -> [none])
 
 \\ SCUD 21 wired Integrate dispatch: position-independent constant-factor
@@ -1359,13 +1364,20 @@
 \\ linearity: top-level Plus -> term-by-term; else single term.
 (define gd-dispatch
   [[sym S] | Terms] V Hi -> (gd-sum Terms V Hi []) where (= (str S) "Plus")
-  G V Hi -> (gd-term G V Hi))
+  G V Hi -> (gd-term-any G V Hi))
 
 \\ all-or-nothing: any [none] aborts the whole sum.
 (define gd-sum
   [] V Hi Acc -> [some (collect-like-terms [(ct-plus) | (reverse Acc)])]
-  [T | Ts] V Hi Acc -> (gd-sum-step (gd-term T V Hi) Ts V Hi Acc)
+  [T | Ts] V Hi Acc -> (gd-sum-step (gd-term-any T V Hi) Ts V Hi Acc)
   _ _ _ _ -> [none])
+
+\\ WAVE 3: dispatch a single term through the Wave-2 STANDARD path first (b=1,
+\\ csq-vertex num arithmetic), then fall to the GENERAL-(a,b) path. Trying gd-term
+\\ first guarantees the Wave-2 standard goldens route unchanged.
+(define gd-term-any
+  T V Hi -> (let Std (gd-term T V Hi)
+                 (if (= Std [none]) (gd-term-gen T V Hi) Std)))
 
 (define gd-sum-step
   [some R] Ts V Hi Acc -> (gd-sum Ts V Hi [R | Acc])
@@ -1529,5 +1541,329 @@
 (define gd-lead-pos?
   [some CV] -> (and (= (coeffs-deg CV) 1) (positive-expr? (coeffs-lead CV)))
   _ -> false)
+
+\\ ===========================================================================
+\\ GAUSSIAN WAVE 3: general-(a,b) half-line lemma + E[P^x] moment assembly.
+\\
+\\ Representation = STANDARDIZATION on the EXISTING 1-arg heads: the general
+\\ normal density is the standardized composite NormalPDF[(u-a)/b] times an
+\\ explicit jacobian Power[b,-1]. NO new 3-arg head is registered, so the
+\\ Wave-1 D-rules (D[NormalCDF[w],x]=NormalPDF[w]*D[w,x]) fire UNCHANGED on
+\\ NormalCDF[(c-a-j b^2)/b] and supply the 1/b chain factor for free -- so
+\\ gd-ftc-ok? is reused VERBATIM. The general lemma:
+\\   Integrate[e^(j u) NormalPDF[(u-a)/b] Power[b,-1], {u,-Inf,c}]
+\\     -> e^(j a + j^2 b^2/2) NormalCDF[(c-a-j b^2)/b]
+\\ DERIVED by completing the square at A=-1/(2 b^2); the factors are COMPUTED
+\\ from (a,b,j) via reduce, NEVER pasted. csq-vertex (num-mul based) CANNOT be
+\\ called here (num-mul dies on symbolic A=-1/(2b^2)); instead the cleared
+\\ closed-form vertex factors are built directly and gated.
+\\ ===========================================================================
+
+\\ Pre-normalize Power[Exp[t],n] -> Exp[n t] (integer n). REQUIRED because
+\\ reduce does NOT auto-collapse Power[Exp[u],2] and gd-find-exp keys on head
+\\ Exp. Exact identity (e^t)^n=e^(nt). Structural rewrite, recurse the AST.
+(define gd-powexp-norm
+  [[sym P] [[sym E] U] [int N]] -> [(gd-exp) [(ct-times) [int N] U]]
+      where (and (= (str P) "Power") (= (str E) "Exp"))
+  [[sym H] | As] -> [[sym H] | (map (/. X (gd-powexp-norm X)) As)]
+  X -> X)
+
+\\ Find the single standardized NormalPDF arg in Dep -> [some Arg]; reject a
+\\ second NormalPDF or any non-Exp factor (preserves e^u*phi^2 / OtherPDF
+\\ blockers). Exp factors are allowed alongside (the linear exponential).
+(define gd-find-npdf-arg
+  Dep V -> (gd-npdf-arg-scan Dep V [none]))
+
+(define gd-npdf-arg-scan
+  [] V Acc -> Acc
+  [[[sym S] Arg] | Fs] V Acc -> (gd-npdf-arg-class (str S) Arg Fs V Acc)
+  [_ | Fs] V Acc -> [none])
+
+(define gd-npdf-arg-class
+  "NormalPDF" Arg Fs V [none] -> (gd-npdf-arg-scan Fs V [some Arg])
+  "NormalPDF" _ _ _ [some _] -> [none]
+  "Exp" _ Fs V Acc -> (gd-npdf-arg-scan Fs V Acc)
+  _ _ _ _ _ -> [none])
+
+\\ Read (a,b) off the standardized arg (u-a)/b via expr->coeffs: a degree-1
+\\ [P0 P1] gives b=1/P1, a=-P0/P1 as SYMBOLIC exprs (safe: they only ever flow
+\\ to reduce, never num-mul/csq-vertex).
+\\ Read (a,b) off the standardized arg. NUMERIC path (a,b literals): expr->coeffs
+\\ gives [a0 a1] with slope a1=1/b numeric -> a=-a0/a1, b=1/a1 (this is how the
+\\ standalone MUST goldens with concrete a,b resolve). SYMBOLIC-b path: expr->coeffs
+\\ DECLINES (poly->coeffs rejects the multivariate monomial u*Power[b,-1]); fall
+\\ back to a STRUCTURAL match on Times[(V - a), Power[B,-1]] -> reads B off the
+\\ inverse-power factor and a off the linear factor. Both flow ONLY to reduce.
+(define gd-ab-from-arg
+  V Arg -> (gd-ab-or-struct (expr->coeffs V Arg) V Arg))
+
+(define gd-ab-or-struct
+  [some [P0 P1]] V Arg -> [some [ (reduce [(ct-times) [int -1] P0 [(ct-power) P1 [int -1]]])
+                                  (reduce [(ct-power) P1 [int -1]]) ]]
+  _ V Arg -> (gd-ab-struct V Arg))
+
+\\ structural (V - a)/b = Times[Lin, Power[B,-1]]: separate the SINGLE Power[B,-1]
+\\ scale factor from the (V-linear) rest; B is that base, a = reduce[V - rest].
+(define gd-ab-struct
+  V [[sym S] | Fs] -> (gd-ab-scale (gd-split-scale Fs [none] []) V) where (= (str S) "Times")
+  V _ -> [none])
+
+\\ find exactly one Power[B,-1] factor; collect the rest. [some B] Rest / [none].
+(define gd-split-scale
+  [] Acc Rest -> [Acc (reverse Rest)]
+  [[[sym S] Base [int -1]] | Fs] [none] Rest -> (gd-split-scale Fs [some Base] Rest)
+      where (= (str S) "Power")
+  [[[sym S] Base [int -1]] | Fs] [some _] Rest -> [nomatch]
+      where (= (str S) "Power")
+  [F | Fs] Acc Rest -> (gd-split-scale Fs Acc [F | Rest]))
+
+\\ a = -(Lin - V), folded via collect-like-terms so the V terms cancel (reduce
+\\ alone does not collect like terms). Lin = (V - a) is the non-scale product.
+(define gd-ab-scale
+  [[some B] Rest] V -> [some [ (collect-like-terms
+                                 [(ct-times) [int -1]
+                                   [(ct-plus) (ibp-times Rest) [(ct-times) [int -1] V]]]) B ]]
+  _ _ -> [none])
+
+\\ General-path single term: split u-free Coef (incl 1/b jacobian), find Exp[L]
+\\ and the standardized NormalPDF; read a,b and j0,j; dispatch to gd-emit-gen.
+(define gd-term-gen
+  [[sym S] | Fs] V Hi -> (gd-parts-gen (partition-free V Fs [] []) V Hi) where (= (str S) "Times")
+  _ _ _ -> [none])
+
+(define gd-parts-gen
+  [Free Dep] V Hi -> (gd-core-gen (ibp-times Free) (gd-find-exp-gen Dep V) (gd-find-npdf-arg Dep V) V Hi)
+  _ _ _ -> [none])
+
+\\ Find the linear exponent: exactly one Exp[L] -> [some L]; ZERO Exp -> [some 0]
+\\ (the j=0 binomial term e^(0 u)=1 carries no Exp after Expand); TWO+ Exp ->
+\\ [none] (reject, never drop an exponential). Tracks zero/one/two states.
+(define gd-find-exp-gen
+  Dep V -> (gd-find-exp-gen-scan Dep V [zero]))
+(define gd-find-exp-gen-scan
+  [] V [zero] -> [some [int 0]]
+  [] V [one L] -> [some L]
+  [[[sym S] Arg] | Fs] V [zero] -> (gd-find-exp-gen-scan Fs V [one Arg]) where (= (str S) "Exp")
+  [[[sym S] Arg] | Fs] V [one _] -> [none] where (= (str S) "Exp")
+  [_ | Fs] V St -> (gd-find-exp-gen-scan Fs V St))
+
+(define gd-core-gen
+  Coef [some L] [some Score] V Hi -> (gd-ab-emit Coef (expr->coeffs V L) (gd-ab-from-arg V Score) V Hi)
+  _ _ _ _ _ -> [none])
+
+(define gd-ab-emit
+  Coef [some LV] [some [A B]] V Hi -> (if (<= (coeffs-deg LV) 1)
+                                          (gd-jpair-gen Coef (gd-lin LV) A B V Hi) [none])
+  _ _ _ _ _ -> [none])
+
+(define gd-jpair-gen
+  Coef [J0 J] A B V Hi -> (if (and (number-expr? J0) (number-expr? J))
+                              (gd-emit-gen Coef J0 J A B V Hi) [none])
+  _ _ _ _ _ _ -> [none])
+
+\\ General-(a,b) per-term lemma: COMPUTE Shift, K (absorbing J0), Arg via reduce
+\\ (the cleared closed form of the A=-1/(2b^2) vertex; no symbolic division, no
+\\ num-mul); build R and GS, then commit through the cleared keystone + reused
+\\ FTC + general vanish. Factors EMERGE from (a,b,j); the gate proves it.
+\\
+\\ The MATCHED integrand is  Coef * e^(j u) * NormalPDF[(u-a)/b]  (Coef = u-free
+\\ factors split out by partition-free, which INCLUDE any explicit density
+\\ jacobian Power[b,-1] the caller injected). The true antiderivative is
+\\   Coef * b * e^K * NormalCDF[(u-Shift)/b]
+\\ because  e^(j u) phi((u-a)/b) == e^K phi((u-Shift)/b)  (the csq identity) and
+\\   Integral phi((u-Shift)/b) du = b * NormalCDF[(u-Shift)/b]    (chain rule:
+\\   D[b N((u-s)/b),u] = b phi((u-s)/b) (1/b) = phi((u-s)/b)).
+\\ The measure factor  b  is therefore CARRIED in R (as Power[B,1]); GS is the
+\\ literal matched integrand (NO Power[b,-1]) so the FTC gate validates R against
+\\ the SUBMITTED integrand's true scale. When the caller's Coef carries a 1/b
+\\ density jacobian, the R-borne b cancels it -- exactly once, never double.
+\\   Shift = a + j b^2          (= -B/(2A))
+\\   K     = j0 + j a + j^2 b^2/2 (= C - B^2/(4A), absorbing j0)
+\\   Arg   = (c - a - j b^2)/b   (= (Hi - Shift)/b)
+(define gd-emit-gen
+  Coef J0 J A B V Hi
+    -> (let Shift (reduce [(ct-plus) A [(ct-times) J [(ct-power) B [int 2]]]])
+            K     (reduce [(ct-plus) J0 [(ct-times) J A]
+                            [(ct-times) [rat 1 2] [(ct-power) J [int 2]] [(ct-power) B [int 2]]]])
+            Arg   (reduce [(ct-times) [(ct-plus) Hi [(ct-times) [int -1] A]
+                                        [(ct-times) [int -1] J [(ct-power) B [int 2]]]]
+                                      [(ct-power) B [int -1]]])
+            \\ Fold the measure factor B into the coefficient (reduce collapses a
+            \\ caller-supplied 1/b jacobian against B to 1, exactly once). R is the
+            \\ true antiderivative. GS is built in the EXACT form D[R,Hi] yields
+            \\ (CoefB * e^K * phi(Arg) * Power[B,-1], the chain factor 1/b explicit)
+            \\ so the FTC subtraction cancels termwise; mathematically GS reduces to
+            \\ the literal matched integrand Coef * e^(ju) * phi((u-a)/b) because
+            \\ CoefB * Power[B,-1] = Coef (the measure factor consumed exactly once).
+            CoefB (reduce [(ct-times) Coef B])
+            R     [(ct-times) CoefB [(gd-exp) K] [(gd-ncdf) Arg]]
+            GS    [(ct-times) CoefB [(gd-exp) K] [(gd-npdf) Arg] [(ct-power) B [int -1]]]
+            (if (and (gd-csq-ok-gen? Shift K J0 J A B V)
+                     (and (gd-ftc-ok? R GS Hi) (gd-vanishes-gen? R Hi B)))
+                [some R]
+                [none])))
+
+\\ THE new soundness gate: cleared-denominator (x 2 b^2) square-completion
+\\ identity, Expand-to-0 in polynomial generators {u,a,b,J}. K absorbs J0 on
+\\ BOTH sides (required: naive j0-on-integrand-only does NOT Expand to 0 because
+\\ expr->poly treats Power[b,-1]/Power[b,-2] as OPAQUE generators -- clearing by
+\\ 2 b^2 makes b^2 a polynomial generator so b^2*b^-2 never appears). A wrong
+\\ Shift OR K -> nonzero -> reject. Mirror of gd-csq-ok? lifted to (a,b).
+(define gd-csq-ok-gen?
+  Shift K J0 J A B V
+    -> (content-eq
+         (reduce [[sym (protect Expand)]
+           [(ct-plus) (gd-vtx-cleared Shift K B V)
+                      [(ct-times) [int -1] (gd-intg-cleared J0 J A B V)]]])
+         [int 0]))
+
+\\ 2 b^2 K - (u - Shift)^2
+(define gd-vtx-cleared
+  Shift K B V -> [(ct-plus) [(ct-times) [int 2] [(ct-power) B [int 2]] K]
+                            [(ct-times) [int -1]
+                              [(ct-power) [(ct-plus) V [(ct-times) [int -1] Shift]] [int 2]]]])
+
+\\ 2 b^2 (j0 + j u) - (u - a)^2
+(define gd-intg-cleared
+  J0 J A B V -> [(ct-plus) [(ct-times) [int 2] [(ct-power) B [int 2]] [(ct-plus) J0 [(ct-times) J V]]]
+                           [(ct-times) [int -1]
+                             [(ct-power) [(ct-plus) V [(ct-times) [int -1] A]] [int 2]]]])
+
+\\ Generalized lower-limit vanish: REUSES the gd-vanishes? structure (Plus needs
+\\ every summand; exactly one NormalCDF carries Hi; all other factors free of Hi)
+\\ but accepts a NormalCDF c-slope that is a positive LITERAL (Wave-2) OR
+\\ structurally Power[B,-1] with B the matched scale symbol, under the single
+\\ family precondition b>0 (b=sigma*sqrt(T)>0). The standard path keeps the
+\\ strict positive-literal check, so Wave-2 goldens never regress.
+(define gd-vanishes-gen?
+  [[sym S] | Terms] C B -> (gd-vanish-gen-dispatch (str S) Terms C B)
+  _ _ _ -> false)
+
+(define gd-vanish-gen-dispatch
+  "Plus"  Terms C B -> (gd-vanish-gen-all Terms C B)
+  "Times" Terms C B -> (gd-vanish-gen-times Terms C B false)
+  _ _ _ _ -> false)
+
+(define gd-vanish-gen-all
+  [] _ _ -> true
+  [T | Ts] C B -> (if (gd-vanishes-gen? T C B) (gd-vanish-gen-all Ts C B) false))
+
+(define gd-vanish-gen-times
+  [] _ _ Found -> Found
+  [[[sym S] Arg] | Fs] C B Found -> (gd-vanish-gen-factor (str S) Arg Fs C B Found)
+  [F | Fs] C B Found -> (if (free-of? F C) (gd-vanish-gen-times Fs C B Found) false))
+
+(define gd-vanish-gen-factor
+  "NormalCDF" Arg Fs C B _ -> (if (gd-arg-lin-pos-gen? Arg C B) (gd-vanish-gen-times Fs C B true) false)
+  _ Arg Fs C B Found -> (if (free-of? Arg C) (gd-vanish-gen-times Fs C B Found) false))
+
+\\ The c-slope test must work when (i) the upper limit C is a COMPOUND (Log[k] in
+\\ the moment) and (ii) the scale b is SYMBOLIC -- both break the univariate poly
+\\ bridge (it cannot use Log[k] as a variable, and u*Power[b,-1] is multivariate).
+\\ Strategy: substitute C with a fresh SYMBOL, factor out the SINGLE Power[B,-1]
+\\ scale (B>0 family precondition), and check the residual linear-in-cvar factor
+\\ has a POSITIVE-LITERAL c-coefficient. Net c-slope = (+lit)*(1/b) > 0.
+(define gd-cvar -> [sym (protect gdLimVar)])
+
+(define gd-arg-lin-pos-gen?
+  Arg C B -> (gd-arg-pos-scaled (gd-subst C (gd-cvar) Arg) B))
+
+\\ Arg' (in cvar): EITHER a clean linear poly with positive numeric lead (Wave-2
+\\ standard, b numeric folds into the slope) OR Times[Lin, Power[B,-1]] with Lin
+\\ linear in cvar, positive-literal lead, and B the matched scale (symbolic b).
+(define gd-arg-pos-scaled
+  Arg B -> (gd-arg-pos-try-poly (expr->coeffs (gd-cvar) Arg) Arg B))
+
+(define gd-arg-pos-try-poly
+  [some CV] Arg B -> (if (and (= (coeffs-deg CV) 1) (positive-expr? (coeffs-lead CV)))
+                         true
+                         (gd-arg-pos-struct Arg B))
+  _ Arg B -> (gd-arg-pos-struct Arg B))
+
+(define gd-arg-pos-struct
+  [[sym S] | Fs] B -> (gd-arg-pos-resid (gd-split-scale Fs [none] []) B) where (= (str S) "Times")
+  _ _ -> false)
+
+(define gd-arg-pos-resid
+  [[some Bb] Rest] B -> (and (content-eq Bb B) (gd-cvar-pos-linear? (ibp-times Rest)))
+  _ _ -> false)
+
+\\ STRUCTURAL positive-linear-in-cvar check (the poly bridge cannot help: terms
+\\ like -j*Power[b,2] are 'multivariate' to it). cvar must appear with a POSITIVE
+\\ coefficient and linearly; every other additive piece must be free of cvar.
+\\   cvar                      -> coeff +1   (ok)
+\\   Times[+lit, cvar, ...free]-> positive literal lead (ok if rest free of cvar)
+\\   Plus[...]                 -> exactly one summand carries cvar (positively)
+(define gd-cvar-pos-linear?
+  E -> (gd-cvar-pos-disp E (gd-cvar)))
+
+(define gd-cvar-pos-disp
+  E V -> (if (content-eq E V)
+             true
+             (gd-cvar-pos-node E V)))
+
+(define gd-cvar-pos-node
+  [[sym S] | Args] V -> (gd-cvar-pos-plus Args V) where (= (str S) "Plus")
+  [[sym S] | Args] V -> (gd-cvar-pos-times Args V) where (= (str S) "Times")
+  _ V -> false)
+
+\\ Plus: exactly one summand contains cvar (and that one is positive-linear); the
+\\ rest are free of cvar.
+(define gd-cvar-pos-plus
+  Args V -> (gd-cvar-pos-plus-loop Args V false))
+(define gd-cvar-pos-plus-loop
+  [] V Found -> Found
+  [T | Ts] V Found -> (if (free-of? T V)
+                          (gd-cvar-pos-plus-loop Ts V Found)
+                          (if Found false
+                              (if (gd-cvar-pos-disp T V) (gd-cvar-pos-plus-loop Ts V true) false))))
+
+\\ Times: exactly one factor is cvar (degree 1), the numeric factors multiply to a
+\\ POSITIVE literal, every other factor free of cvar.
+(define gd-cvar-pos-times
+  Args V -> (gd-cvar-pos-times-loop Args V false [int 1]))
+(define gd-cvar-pos-times-loop
+  [] V Found Lit -> (and Found (positive-expr? Lit))
+  [F | Fs] V Found Lit -> (if (content-eq F V)
+                              (if Found false (gd-cvar-pos-times-loop Fs V true Lit))
+                              (if (free-of? F V)
+                                  (if (number-expr? F)
+                                      (gd-cvar-pos-times-loop Fs V Found (num-mul Lit F))
+                                      (gd-cvar-pos-times-loop Fs V Found Lit))
+                                  false)))
+
+\\ structural substitution: replace every occurrence content-eq to Old with New.
+(define gd-subst
+  Old New E -> (if (content-eq E Old) New (gd-subst-rec Old New E)))
+(define gd-subst-rec
+  Old New [H | As] -> [(gd-subst Old New H) | (map (/. X (gd-subst Old New X)) As)]
+  Old New X -> X)
+
+\\ ---------------------------------------------------------------------------
+\\ CORE entry: derive E[P^x] from the NORMAL-form moment integral
+\\   E[P^x] = e^(-x r T) Integrate[(k-Exp[u])^x NormalPDF[(u-a)/b] Power[b,-1],
+\\                                 {u, -Infinity, Log k}].
+\\ Binomial-expand (coeffs EMERGENT via Expand) + powexp-norm + standardized
+\\ density + gauss-definite (linearity + general lemma) + discount + collect.
+\\ Inert unless X is a positive int literal (else [none]).
+\\ ---------------------------------------------------------------------------
+(define expect-put-normal
+  X K A B R T V
+    -> (if (and (number-expr? X) (positive-expr? X))
+           (let Payoff  (reduce [[sym (protect Expand)]
+                          [(ct-power) [(ct-plus) K [(ct-times) [int -1] [(gd-exp) V]]] X]])
+                Normed  (gd-powexp-norm Payoff)
+                Score   [(ct-times) [(ct-plus) V [(ct-times) [int -1] A]] [(ct-power) B [int -1]]]
+                Dens    [(ct-times) [(gd-npdf) Score] [(ct-power) B [int -1]]]
+                Intgnd  (reduce [[sym (protect Expand)] [(ct-times) Normed Dens]])
+                Hi      [[sym (protect Log)] K]
+                Inner   (gd-dispatch Intgnd V Hi)
+                (gd-discount-finish Inner X R T))
+           [none]))
+
+(define gd-discount-finish
+  [some I] X R T -> [some (collect-like-terms
+                            [(ct-times) [(gd-exp) [(ct-times) [int -1] X R T]] I])]
+  [none] _ _ _ -> [none])
 
 (output "calc-helpers.shen loaded (SameQ/UnsameQ/FreeQ/NumberQ/Positive/And/Simplify + free-of? + collect-like-terms + integrate-by-parts + gauss-definite).~%")
