@@ -29,6 +29,28 @@
             false)
         (/. E true)))
 
+\\ Gaussian Wave 1 goldens: prove the DEFINING differential relations (derivations,
+\\ not tabulations) and INERTNESS of unsupported forms. Orderless Times goldens use
+\\ term-set-eq? (multiset); bare-equality goldens use content-eq.
+(define tc-normal-tests
+  -> (let X (tc-dvar)
+          NCDF (/. E [[sym (protect NormalCDF)] E])
+          NPDF (/. E [[sym (protect NormalPDF)] E])
+          G1 (content-eq (reduce (tc-d (NCDF X))) (NPDF X))
+          G2 (term-set-eq? (reduce [[sym (protect Simplify)] (tc-d (NPDF X))])
+                           [[sym (protect Times)] [int -1] X (NPDF X)])
+          AX [[sym (protect Times)] [sym (protect aW1)] X]
+          G3 (term-set-eq? (reduce [[sym (protect Simplify)] (tc-d (NCDF AX))])
+                           [[sym (protect Times)] [sym (protect aW1)] (NPDF AX)])
+          G4 (content-eq (reduce (tc-int (NPDF X))) (NCDF X))
+          G5 (content-eq (reduce (NCDF X)) (NCDF X))
+          R6 (reduce (tc-int [[sym (protect Times)] [[sym (protect Exp)] X] (NPDF X)]))
+          G6 (= (head R6) [sym (protect Integrate)])
+          Ok (and G1 (and G2 (and G3 (and G4 (and G5 G6)))))
+          (do (output "wave1 normal: Ncdf=~A Npdf=~A chain=~A intpdf=~A inert-cdf=~A inert-prod=~A~%" G1 G2 G3 G4 G5 G6)
+              (if Ok (output "gaussian wave 1: PASS~%") (output "gaussian wave 1: FAIL~%"))
+              Ok)))
+
 (define run-calculus-tests
   -> (let Ign0 (demo-register-calculus)
           Ign (output "~%=== SCUD 22 calculus corpus + rejection showcase ===~%")
@@ -38,7 +60,9 @@
           B2 (tc-diff-back? [[sym (protect Plus)] [[sym (protect Power)] X [int 2]] X])  \\ ∫(x²+x) via linearity
           \\ realistic derivative-rule typo rejected at definition time (the thesis):
           Rej (tc-rej-typo-derivative)
-          Ok (and B1 B2 Rej)
+          \\ Gaussian Wave 1 derivation + inertness goldens:
+          W1 (tc-normal-tests)
+          Ok (and B1 (and B2 (and Rej W1)))
           (do (output "22: diffback[cos]=~A diffback[x^2+x]=~A typo-derivative-rejected=~A~%" B1 B2 Rej)
               (if Ok (output "calculus corpus (SCUD 22): PASS~%")
                   (output "calculus corpus (SCUD 22): FAIL~%"))

@@ -125,6 +125,12 @@
 \\   integrate-cyclic    T3.3  ∫Exp[x] Sin[x], ∫Exp[x] Cos[x]
 \\   integrate-trigpow   T3.2  ∫Cos[x]^2, ∫Sin[x]^2, ∫Sec[x]^2
 (define integrate-after-table
+  Integrand V -> (let NP (integrate-normalpdf Integrand V)
+                      (if (= NP [none])
+                          (integrate-after-normalpdf Integrand V)
+                          NP)))
+
+(define integrate-after-normalpdf
   Integrand V -> (let I (integrate-invfun Integrand V)
                       (if (= I [none])
                           (integrate-after-invfun Integrand V)
@@ -918,6 +924,24 @@
 
 (define iv-commit
   Cand Integrand V -> (if (integ-diffback-ok? Cand Integrand V) [some Cand] [none]))
+
+\\ ---- Gaussian Wave 1: Integrate[NormalPDF[x],x] -> NormalCDF[x] -------------
+\\ The CDF is, by definition, the antiderivative of the PDF. This is DERIVED,
+\\ not tabulated: it commits ONLY through the shared differentiate-back gate,
+\\ which holds because the D[NormalCDF[u],x] -> NormalPDF[u] rule makes
+\\ reduce[Simplify[D[NormalCDF[x],x] - NormalPDF[x]]] == 0. Fires only on a
+\\ single-arg NormalPDF over the BARE variable (content-eq Arg V); any other
+\\ integrand (e.g. Exp[x]*NormalPDF[x]) declines to [none] and stays INERT.
+\\ The general (Integrand/V) gate means a Wave-2 complete-the-square pass that
+\\ rewrites to NormalPDF over a shifted argument reuses this same machinery.
+(define integrate-normalpdf
+  [[sym S] Arg] V -> (inpdf-by-name (str S) Arg V)
+  _ _ -> [none])
+
+(define inpdf-by-name
+  "NormalPDF" Arg V -> (iv-commit [[sym (protect NormalCDF)] V] [[sym (protect NormalPDF)] V] V)
+                       where (content-eq Arg V)
+  _ _ _ -> [none])
 
 \\ ---- T2.2: ∫Log[x] and ∫x^n Log[x] via by-parts (u=Log, dv=x^n dx) ----------
 \\   ∫x^n Log[x] dx = x^(n+1)/(n+1) Log[x] - x^(n+1)/(n+1)^2   (n numeric, n != -1)
