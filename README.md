@@ -26,6 +26,34 @@ Pure-Shen reference evaluator is the specification.
 
 Run tests via the harness in test.shen.
 
+## Step-by-step derivations
+
+The evaluator reaches a normal form by a fixed-point loop (`reduce-fixpoint` in
+[`src/core.shen`](src/core.shen)) that applies one `eval-step` at a time. A *derivation* is just
+that reduction sequence made visible. [`src/trace.shen`](src/trace.shen) adds it **without touching
+the hot path** (`reduce`/`normal-form` are unchanged):
+
+- `(reduce-trace E)` → a list of `[Before After Why]` step records.
+- `(derive E)` → prints a readable, layered derivation (each intermediate expression **plus the name
+  of the rule / built-in that fired** — e.g. `sum rule (linearity)`, `power rule (chain-aware)`,
+  `chain rule: d/dx Sin = Cos . u'`, `antiderivative table`, `arithmetic (numeric fold)`) and returns
+  the normal form.
+
+It works for differentiation, integration, `Simplify`, and arithmetic alike, because they are all
+driven by the same rewrite loop. `reduce-trace` re-walks the *same* ordered sequence the engine uses
+(args first, then this node: canonicalize → built-in → DownValues → UpValues), one micro-step at a
+time; a pure Orderless/Flat reorder is applied but suppressed from the printed steps. The faithfulness
+invariant — the trace's final form equals `(reduce E)` — is checked in
+[`test/test-trace.shen`](test/test-trace.shen).
+
+```shen
+(load "load.shen")
+(load "demo/dsl.shen")
+(demo-register-calculus)
+(derive (deriv (powr (vx) (lit 3))))   \\ d/dx x^3, step by step
+(steps (integ (f-cos (vx))))           \\ ∫ cos x dx, step by step
+```
+
 ## Layout
 
 - src/ (or root modules): store.shen, expr.shen, ...

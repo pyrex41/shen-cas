@@ -39,9 +39,14 @@
 (load "src/scope.shen")
 (load "src/read.shen")
 (load "src/print.shen")
+\\ Step-by-step derivations: reduce-trace / derive. Non-invasive (reduce/normal-form
+\\ unchanged); loaded LAST as it uses core (canon/try-builtin/dispatch), match,
+\\ rule accessors, pattern recognizers, and print-expr.
+(load "src/trace.shen")
 
 (output "shen-cas loaded (skeleton). See plan.md and test.shen.~%")
 (load "test/test-calculus.shen")  \\ SCUD 22: defines run-calculus-tests (used by run-all-tests)
+(load "test/test-trace.shen")     \\ derivations: defines run-trace-tests
 (load "test/test-reader.shen")    \\ SCUD 16 Wave A: defines run-reader-printer-tests
 (load "test/test-poly.shen")      \\ SCUD 17 Wave B: defines run-poly-tests
 (load "test/test-polyalg.shen")   \\ SCUD 18 Wave C: defines run-polyalg-tests

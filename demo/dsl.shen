@@ -24,4 +24,8 @@
 \\ reduce to normal form and pretty-print
 (define shw E -> (pretty-expr (reduce E)))
 
+\\ print a step-by-step derivation (D / Integrate / Simplify / arithmetic) and
+\\ return the normal form. e.g. (steps (deriv (powr (vx) (lit 3))))
+(define steps E -> (derive E))
+
 (output "demo/dsl.shen loaded.~%")
