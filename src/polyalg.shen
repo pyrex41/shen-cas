@@ -665,4 +665,107 @@
   [] _ -> []
   [C | Cs] L -> [(num-mul C [int L]) | (vec-clear Cs L)])
 
-(output "polyalg.shen loaded (univariate Q: PolynomialGCD/Cancel/Together/Factor).~%")
+\\ ============================================================================
+\\ Apart[Divide[P,Q]] : partial-fraction decomposition over DISTINCT linear
+\\ factors over Q.   P/Q = sum_i A_i/(x - r_i),  A_i = P(r_i)/prod_{j!=i}(r_i-r_j).
+\\ SOUND + BOUNDED. Declines ([none] -> head stays inert) unless: input is
+\\ Divide[poly,poly] in ONE variable, the fraction is PROPER (deg P < deg Q), Q
+\\ splits into deg(Q) DISTINCT rational roots, AND the residue recombination
+\\ EXACTLY reproduces P/Q (pure coeff-vector check, no Simplify dependency).
+\\ Repeated roots / irreducible quadratics / improper fractions stay inert.
+\\ ============================================================================
+(define apart-builtin
+  E -> (trap-error (apart-attempt E) (/. Er [none])))
+
+(define apart-attempt
+  [H P Q] -> (if (pa-divide-head? H) (apart-on-divide P Q) [none])
+  _ -> [none])
+
+(define apart-on-divide
+  P Q -> (apart-pick-var (gcd-shared-var P Q) P Q))
+
+(define apart-pick-var
+  [some V] P Q -> (apart-coeffs V (expr->coeffs V P) (expr->coeffs V Q))
+  [none] P Q -> [none])
+
+(define apart-coeffs
+  V [some PV] [some QV] -> (apart-monic V (trim-coeffs PV) (trim-coeffs QV))
+  V _ _ -> [none])
+
+\\ make Q monic, scale P identically (P/Q unchanged); require a proper fraction.
+(define apart-monic
+  V PV QV -> (let Lc (coeffs-lead QV)
+                  QM (make-monic QV)
+                  PM (vec-scale (num-div [int 1] Lc) PV)
+                  (if (< (coeffs-deg PM) (coeffs-deg QM))
+                      (apart-roots V PM QM (rational-roots QM))
+                      [none])))
+
+\\ require exactly deg(Q) DISTINCT roots whose product reconstructs QM (monic).
+(define apart-roots
+  V PM QM Roots -> (if (= (length Roots) (coeffs-deg QM))
+                       (if (vec-eq? (apart-prod Roots) QM)
+                           (apart-gate V (apart-terms PM Roots Roots) PM QM)
+                           [none])
+                       [none]))
+
+(define apart-prod
+  [] -> [[int 1]]
+  [R | Rs] -> (vec-mul (linear-vec R) (apart-prod Rs)))
+
+\\ [A_i RootVec_i] pairs: A_i = P(r_i)/prod_{j!=i}(r_i - r_j).
+(define apart-terms
+  _ [] _ -> []
+  PM [R | Rs] All -> [[(apart-residue PM R All) (linear-vec R)] | (apart-terms PM Rs All)])
+
+(define apart-residue
+  PM R All -> (num-div (vec-eval PM R) (apart-proddiff R All)))
+
+(define apart-proddiff
+  _ [] -> [int 1]
+  R [Rj | Rs] -> (if (num-eq? R Rj)
+                     (apart-proddiff R Rs)
+                     (num-mul (num-sub R Rj) (apart-proddiff R Rs))))
+
+\\ EXACT recombination gate: sum_i A_i/(x-r_i) must equal PM/QM as coeff vectors.
+(define apart-gate
+  V Terms PM QM -> (apart-gate-2 V Terms PM QM (sum-fracs (apart-fracs Terms))))
+
+\\ each term [A Lin] -> fraction [NumVec DenVec] = [[A] Lin].
+(define apart-fracs
+  [] -> []
+  [[A Lin] | Ts] -> [[[A] Lin] | (apart-fracs Ts)])
+
+(define apart-gate-2
+  V Terms PM QM [Num Den] -> (if (vec-eq? Num PM)
+                                 (if (vec-eq? Den QM)
+                                     [some (apart-emit V Terms)]
+                                     [none])
+                                 [none])
+  V Terms PM QM _ -> [none])
+
+\\ emit Plus of A_i*(x-r_i)^-1 (A_i=1 -> bare power; else Times).
+(define apart-emit
+  V [T] -> (apart-term V T)
+  V Terms -> [(pa-plus) | (apart-emit-list V Terms)])
+
+(define apart-emit-list
+  _ [] -> []
+  V [T | Ts] -> [(apart-term V T) | (apart-emit-list V Ts)])
+
+(define apart-term
+  V [A Lin] -> (if (num-eq? A [int 1])
+                   [(pa-power) (coeffs->expr V Lin) [int -1]]
+                   [(pa-times) A [(pa-power) (coeffs->expr V Lin) [int -1]]]))
+
+\\ exact elementwise equality of trimmed coeff vectors.
+(define vec-eq?
+  A B -> (vec-eq-loop (trim-coeffs A) (trim-coeffs B)))
+
+(define vec-eq-loop
+  [] [] -> true
+  [] _ -> false
+  _ [] -> false
+  [A | As] [B | Bs] -> (if (num-eq? A B) (vec-eq-loop As Bs) false))
+
+(output "polyalg.shen loaded (univariate Q: PolynomialGCD/Cancel/Together/Factor/Apart).~%")
