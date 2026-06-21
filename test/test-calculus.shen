@@ -51,6 +51,85 @@
               (if Ok (output "gaussian wave 1: PASS~%") (output "gaussian wave 1: FAIL~%"))
               Ok)))
 
+\\ ===========================================================================
+\\ GAUSSIAN WAVE 2 goldens: the DEFINITE half-line Gaussian integral
+\\   Integrate[e^(j u) NormalPDF[u], {u,-Infinity,c}] -> e^(j^2/2) NormalCDF[c-j]
+\\ DERIVED by completing the square (csq-vertex), FTC + square-completion gated.
+\\ Goldens prove (a) the derivation for several j (distinct e^{j^2/2}, c-j -- the
+\\ anti-tabulation witness), (b) linearity, (c) csq-vertex genericity on a
+\\ NON-Gaussian quadratic, (d) the round-trip FTC + negative control, (e) the
+\\ inertness boundary. The closed form is NEVER pasted: it falls out of arithmetic.
+\\ ===========================================================================
+
+\\ build the definite-integral iterator AST directly (reader not extended in W2).
+(define w2-defint
+  G U Lo C -> [[sym (protect Integrate)] G [[sym (protect List)] U Lo C]])
+(define w2-uu      -> [sym (protect uu)])
+(define w2-cc      -> [sym (protect cc)])
+(define w2-neg-inf -> [[sym (protect Times)] [int -1] [sym (protect Infinity)]])
+
+\\ integrand e^(J u) * NormalPDF[u]
+(define w2-egphi
+  J -> [[sym (protect Times)]
+         [[sym (protect Exp)] [[sym (protect Times)] J (w2-uu)]]
+         [[sym (protect NormalPDF)] (w2-uu)]])
+
+\\ run the half-line integral with lower limit -Infinity and upper limit c.
+(define w2-run
+  G -> (reduce (w2-defint G (w2-uu) (w2-neg-inf) (w2-cc))))
+
+\\ expected e^K * NormalCDF[c - S] (reduced so c + (-1*S) folds to canonical form).
+(define w2-expected
+  K S -> (reduce [[sym (protect Times)] [[sym (protect Exp)] K]
+                  [[sym (protect NormalCDF)] [[sym (protect Plus)] (w2-cc) [[sym (protect Times)] [int -1] S]]]]))
+
+\\ inert: head must remain Integrate (the matcher declined cleanly).
+(define w2-inert?
+  G U Lo C -> (= (head (reduce (w2-defint G U Lo C))) [sym (protect Integrate)]))
+
+(define w2-gaussian-tests
+  -> (let
+          \\ (a) DERIVATION goldens: distinct j -> distinct e^{j^2/2}, c-j.
+          D2  (term-set-eq? (w2-run (w2-egphi [int 2]))   (w2-expected [int 2]   [int 2]))    \\ e^{4/2}=e^2, c-2
+          D1  (term-set-eq? (w2-run (w2-egphi [int 1]))   (w2-expected [rat 1 2] [int 1]))    \\ e^{1/2},   c-1
+          Dn1 (term-set-eq? (w2-run (w2-egphi [int -1]))  (w2-expected [rat 1 2] [int -1]))   \\ e^{1/2},   c+1
+          Dh  (term-set-eq? (w2-run (w2-egphi [rat 1 2])) (w2-expected [rat 1 8] [rat 1 2]))  \\ e^{1/8},   c-1/2
+          \\ (b) LINEARITY: a*e^{u}phi + b*e^{2u}phi distributes (a,b u-free).
+          Lin (term-set-eq?
+                (w2-run [[sym (protect Plus)]
+                          [[sym (protect Times)] [sym (protect aW2)] [[sym (protect Exp)] [[sym (protect Times)] [int 1] (w2-uu)]] [[sym (protect NormalPDF)] (w2-uu)]]
+                          [[sym (protect Times)] [sym (protect bW2)] [[sym (protect Exp)] [[sym (protect Times)] [int 2] (w2-uu)]] [[sym (protect NormalPDF)] (w2-uu)]]])
+                [[sym (protect Plus)]
+                  [[sym (protect Times)] [sym (protect aW2)] [[sym (protect Exp)] [rat 1 2]] [[sym (protect NormalCDF)] [[sym (protect Plus)] (w2-cc) [int -1]]]]
+                  [[sym (protect Times)] [sym (protect bW2)] [[sym (protect Exp)] [int 2]]   [[sym (protect NormalCDF)] [[sym (protect Plus)] (w2-cc) [int -2]]]]])
+          \\ (c) csq-vertex GENERICITY (NON-Gaussian): x^2+6x+5 -> [-3, -4]; -3u^2+2u -> [1/3, 1/3].
+          CsqA (content-eq (csq-vertex [int 1]  [int 6] [int 5]) [[int -3] [int -4]])
+          CsqB (content-eq (csq-vertex [int -3] [int 2] [int 0]) [[rat 1 3] [rat 1 3]])
+          \\ ...and the Gaussian constant IS csq-vertex[-1/2, j, 0].const: for j=2 -> [Shift=2, K=2].
+          CsqG (content-eq (csq-vertex [rat -1 2] [int 2] [int 0]) [[int 2] [int 2]])
+          \\ (d) ROUND-TRIP FTC + NEGATIVE control. gd-emit commits the right [Shift K]
+          \\     and DECLINES a deliberately-wrong shift (3 instead of 2 for j=2).
+          FtcPos (= (head-of (gd-emit [int 1] [[int 2] [int 2]] [int 0] [int 2] (w2-uu) (w2-cc))) some)
+          FtcNeg (= (gd-emit [int 1] [[int 3] [int 2]] [int 0] [int 2] (w2-uu) (w2-cc)) [none])
+          \\ (e) INERTNESS boundary.
+          IPow  (w2-inert? [[sym (protect Times)] [[sym (protect Power)] [[sym (protect Plus)] [sym (protect kW2)] [[sym (protect Times)] [int -1] [[sym (protect Exp)] (w2-uu)]]] [int 2]] [[sym (protect NormalPDF)] (w2-uu)]] (w2-uu) (w2-neg-inf) (w2-cc))
+          ILo   (w2-inert? (w2-egphi [int 1]) (w2-uu) [int 0] (w2-cc))                    \\ lower limit != -Infinity
+          ISym  (w2-inert? [[sym (protect Times)] [[sym (protect Exp)] [[sym (protect Times)] [sym (protect kW2)] (w2-uu)]] [[sym (protect NormalPDF)] (w2-uu)]] (w2-uu) (w2-neg-inf) (w2-cc))  \\ symbolic j
+          IQuad (w2-inert? [[sym (protect Times)] [[sym (protect Exp)] [[sym (protect Power)] (w2-uu) [int 2]]] [[sym (protect NormalPDF)] (w2-uu)]] (w2-uu) (w2-neg-inf) (w2-cc))           \\ e^{u^2}
+          IDen  (w2-inert? [[sym (protect Times)] [[sym (protect Exp)] (w2-uu)] [[sym (protect OtherPDF)] (w2-uu)]] (w2-uu) (w2-neg-inf) (w2-cc))                                            \\ non-NormalPDF
+          IGab  (w2-inert? [[sym (protect Times)] [[sym (protect Exp)] (w2-uu)] [[sym (protect NormalPDF)] [[sym (protect Times)] [[sym (protect Plus)] (w2-uu) [int -3]] [[sym (protect Power)] [int 2] [int -1]]]]] (w2-uu) (w2-neg-inf) (w2-cc))  \\ general-(a,b) seam
+          I2pdf (w2-inert? [[sym (protect Times)] [[sym (protect Exp)] (w2-uu)] [[sym (protect NormalPDF)] (w2-uu)] [[sym (protect NormalPDF)] (w2-uu)]] (w2-uu) (w2-neg-inf) (w2-cc))  \\ TWO phi factors: e^u phi^2 must stay inert (never drop a density)
+          Deriv (and D2 (and D1 (and Dn1 Dh)))
+          Csq   (and CsqA (and CsqB CsqG))
+          Ftc   (and FtcPos FtcNeg)
+          Inert (and IPow (and ILo (and ISym (and IQuad (and IDen (and IGab I2pdf))))))
+          Ok (and Deriv (and Lin (and Csq (and Ftc Inert))))
+          (do (output "wave2 deriv: j2=~A j1=~A jn1=~A jhalf=~A~%" D2 D1 Dn1 Dh)
+              (output "wave2 linearity=~A csq[NG]=~A,~A csq[G]=~A ftc[pos]=~A ftc[neg]=~A~%" Lin CsqA CsqB CsqG FtcPos FtcNeg)
+              (output "wave2 inert: pow=~A lo=~A symj=~A quad=~A den=~A gab=~A 2pdf=~A~%" IPow ILo ISym IQuad IDen IGab I2pdf)
+              (if Ok (output "wave2 gaussian: PASS~%") (output "wave2 gaussian: FAIL~%"))
+              Ok)))
+
 (define run-calculus-tests
   -> (let Ign0 (demo-register-calculus)
           Ign (output "~%=== SCUD 22 calculus corpus + rejection showcase ===~%")
@@ -62,7 +141,9 @@
           Rej (tc-rej-typo-derivative)
           \\ Gaussian Wave 1 derivation + inertness goldens:
           W1 (tc-normal-tests)
-          Ok (and B1 (and B2 (and Rej W1)))
+          \\ Gaussian Wave 2 definite half-line integral goldens:
+          W2 (w2-gaussian-tests)
+          Ok (and B1 (and B2 (and Rej (and W1 W2))))
           (do (output "22: diffback[cos]=~A diffback[x^2+x]=~A typo-derivative-rejected=~A~%" B1 B2 Rej)
               (if Ok (output "calculus corpus (SCUD 22): PASS~%")
                   (output "calculus corpus (SCUD 22): FAIL~%"))

@@ -85,6 +85,14 @@
   \\ declines ([none]) for everything else so the integration rule library and
   \\ the inert fall-through handle the rest. It runs before user rules but
   \\ ibp's whitelist guarantees it only ever fires on Times[poly, {Sin|Cos|Exp}].
+  \\ Gaussian Wave 2: DEFINITE half-line integral Integrate[g,{u,-Inf,c}]. The
+  \\ second arg is a length-3 List iterator (vs the bare [sym V] of the indefinite
+  \\ form below). This clause is keyed on the List head and is TERMINAL: it never
+  \\ falls through to the indefinite 2-arg clause, so on decline it returns [none]
+  \\ (-> clean inert Integrate) rather than letting integrate-wired mangle the
+  \\ List into a Times. e^{j^2/2} and (c-j) are COMPUTED by csq-vertex, never
+  \\ pre-written. See gauss-definite below.
+  "Integrate" [G [[sym L] V Lo Hi]] -> (gauss-definite G V Lo Hi) where (= (str L) "List")
   "Integrate" [Integrand V] -> (integrate-wired Integrand V)
   \\ SCUD 20 Wave E: Taylor Series + Limit (src/series.shen). Series accepts the
   \\ 3-arg (about 0) and 4-arg (about V0) forms; Limit is 3-arg. Each declines
@@ -1300,4 +1308,226 @@
              [none]
              (if (= (* I I) N) [some I] (isqrt-loop N (+ I 1)))))
 
-(output "calc-helpers.shen loaded (SameQ/UnsameQ/FreeQ/NumberQ/Positive/And/Simplify + free-of? + collect-like-terms + integrate-by-parts).~%")
+\\ ===========================================================================
+\\ GAUSSIAN WAVE 2: the DEFINITE half-line Gaussian integral.
+\\
+\\   Integrate[ e^(j u) * NormalPDF[u] , {u, -Infinity, c} ]  ->  e^(j^2/2) N(c-j)
+\\
+\\ DERIVED, not tabulated. The pipeline:
+\\   (a) intercept the List iterator; require Lo = -Infinity, else inert.
+\\   (b) linearity: a top-level Plus integrates term-by-term; ANY term declining
+\\       aborts the WHOLE integral (never partial).
+\\   (c) per term: split u-free coefficient factors out (partition-free); require
+\\       the u-dependent part to be exactly { Exp[linear(u)], NormalPDF[u] };
+\\       read the exponent coeffs via expr->coeffs; run csq-vertex to COMPUTE the
+\\       shift and constant K; build R = Coef * Exp[K] * NormalCDF[c - shift].
+\\   (d) commit ONLY through TWO gates: the shifted-FTC gate (D[R,c] == g_shifted)
+\\       and the lower-limit structural vanish check (every term -> 0 as c->-Inf).
+\\   (e) anything else -> [none] -> clean inert Integrate.
+\\
+\\ ANTI-TABULATION: e^{j^2/2} and (c-j) are produced by csq-vertex's generic
+\\ complete-the-square arithmetic on the matched j (NOT pasted). csq-vertex is a
+\\ standalone primitive proven on a NON-Gaussian quadratic (x^2+6x+5) in the
+\\ goldens, so the Gaussian constant is demonstrably the generic vertex formula.
+\\ ===========================================================================
+
+(define gd-exp   -> [sym (protect Exp)])
+(define gd-ncdf  -> [sym (protect NormalCDF)])
+(define gd-npdf  -> [sym (protect NormalPDF)])
+
+\\ entry: this clause is TERMINAL for the List-iterator form. It always returns
+\\ [some _] so the wired builtin commits (never falls through to the indefinite
+\\ 2-arg clause / the I6/I7/I8 DownValues, which would mangle Integrate[Times,List]
+\\ into a Times via the constant-pullout rule -- the List node is free of every
+\\ integrand factor, so FreeQ spuriously holds). On any decline we emit the inert
+\\ 4-arg flattened form Integrate[G, u, Lo, Hi]: it has head Integrate (so the
+\\ inertness goldens see a clean Integrate), it does NOT match the 2-arg I-rules,
+\\ and it is a fixpoint (no clause re-matches it). Require Lo = -Infinity first.
+(define gauss-definite
+  G V Lo Hi -> (gd-finish (if (gd-neg-inf? Lo) (gd-dispatch G V Hi) [none]) G V Lo Hi))
+
+\\ commit a derived [some R], or fall back to the clean inert 4-arg form.
+(define gd-finish
+  [some R] G V Lo Hi -> [some R]
+  [none]   G V Lo Hi -> [some [[sym (protect Integrate)] G V Lo Hi]])
+
+\\ -Infinity is the canonical sorted form Times[-1, Infinity].
+(define gd-neg-inf?
+  [[sym ST] [int -1] [sym SI]] -> (and (= (str ST) "Times") (= (str SI) "Infinity"))
+  _ -> false)
+
+\\ linearity: top-level Plus -> term-by-term; else single term.
+(define gd-dispatch
+  [[sym S] | Terms] V Hi -> (gd-sum Terms V Hi []) where (= (str S) "Plus")
+  G V Hi -> (gd-term G V Hi))
+
+\\ all-or-nothing: any [none] aborts the whole sum.
+(define gd-sum
+  [] V Hi Acc -> [some (collect-like-terms [(ct-plus) | (reverse Acc)])]
+  [T | Ts] V Hi Acc -> (gd-sum-step (gd-term T V Hi) Ts V Hi Acc)
+  _ _ _ _ -> [none])
+
+(define gd-sum-step
+  [some R] Ts V Hi Acc -> (gd-sum Ts V Hi [R | Acc])
+  [none]   Ts V Hi Acc -> [none])
+
+\\ single term: must be a Times; split u-free coeff factors out, then require the
+\\ u-dependent part be exactly { Exp[L], NormalPDF[V] } (orderless).
+(define gd-term
+  [[sym S] | Fs] V Hi -> (gd-parts (partition-free V Fs [] []) V Hi) where (= (str S) "Times")
+  _ _ _ -> [none])
+
+(define gd-parts
+  [Free Dep] V Hi -> (gd-core (ibp-times Free) (gd-find-exp Dep V [none]) (gd-find-npdf Dep V) V Hi)
+  _ _ _ -> [none])
+
+\\ exactly one Exp[arg] in Dep -> [some arg]; a second Exp -> [none].
+(define gd-find-exp
+  [] V Acc -> Acc
+  [[[sym S] Arg] | Fs] V [none] -> (gd-find-exp Fs V [some Arg]) where (= (str S) "Exp")
+  [[[sym S] Arg] | Fs] V [some _] -> [none] where (= (str S) "Exp")
+  [_ | Fs] V Acc -> (gd-find-exp Fs V Acc))
+
+\\ Dep must contain exactly one NormalPDF[V] (content-eq V) plus the Exp, nothing
+\\ else. Any other factor -> false (reject).
+(define gd-find-npdf
+  Dep V -> (gd-npdf-scan Dep V false))
+
+(define gd-npdf-scan
+  [] V Found -> Found
+  [[[sym S] Arg] | Fs] V Found -> (gd-npdf-class (str S) Arg Fs V Found)
+  [_ | Fs] V Found -> false)
+
+(define gd-npdf-class
+  "NormalPDF" Arg Fs V false -> (if (content-eq Arg V) (gd-npdf-scan Fs V true) false)
+  "NormalPDF" _ _ _ true -> false
+  "Exp" _ Fs V Found -> (gd-npdf-scan Fs V Found)
+  _ _ _ _ _ -> false)
+
+\\ read the exponent coeff vector; require deg<=1 and numeric coeffs; then run
+\\ csq-vertex on (a=-1/2, b=j, c=j0) to COMPUTE shift & K; build & gate.
+(define gd-core
+  Coef [some E] true V Hi -> (gd-coeffs Coef (expr->coeffs V E) V Hi)
+  _ _ _ _ _ -> [none])
+
+(define gd-coeffs
+  Coef [some CV] V Hi -> (if (<= (coeffs-deg CV) 1) (gd-jpair Coef (gd-lin CV) V Hi) [none])
+  _ _ _ _ -> [none])
+
+\\ pad to [j0 j]. (coeffs-deg<=1 guaranteed length 1 or 2; a constant [j0]
+\\ becomes [j0 0]; empty/zero vector -> [int 0] term -> [[int 0]] handled.)
+(define gd-lin
+  [] -> [[int 0] [int 0]]
+  [J0] -> [J0 [int 0]]
+  [J0 J1] -> [J0 J1]
+  _ -> [none])
+
+(define gd-jpair
+  Coef [J0 J] V Hi -> (if (and (number-expr? J0) (number-expr? J)) (gd-build Coef J0 J V Hi) [none])
+  _ _ _ _ -> [none])
+
+\\ csq-vertex [A B C] -> [Shift Const], the GENERIC complete-the-square vertex
+\\ form a(u-shift)^2 + const for a*u^2 + b*u + c, with
+\\     Shift = -b/(2a)        Const = c - b^2/(4a).
+\\ Pure num arithmetic; works on ANY quadratic (the non-Gaussian golden proves
+\\ it). For the Gaussian (A=-1/2, B=j, C=j0) this yields Shift=j, Const=j0+j^2/2.
+(define csq-vertex
+  A B C -> (let TwoA  (num-mul [int 2] A)
+                Shift (reduce [(ct-times) [(ct-times) [int -1] B] [(ct-power) TwoA [int -1]]])
+                FourA (num-mul [int 4] A)
+                Bsq   (num-mul B B)
+                Const (reduce [(ct-plus) C [(ct-times) [int -1] Bsq [(ct-power) FourA [int -1]]]])
+                [Shift Const]))
+
+(define gd-build
+  Coef J0 J V Hi -> (gd-emit Coef (csq-vertex [rat -1 2] J J0) J0 J V Hi))
+
+\\ build R and g_shifted from the COMPUTED [Shift K], commit through ALL gates.
+\\ Gates (all required): (1) the SQUARE-COMPLETION identity, verified at the
+\\ exponent (polynomial) level where the engine has exact arithmetic; (2) the
+\\ shifted-FTC, confirming R is the Wave-1 antiderivative of g_shifted; (3) the
+\\ lower-limit structural vanish. Gate (1) is what makes g_shifted == g_at_c
+\\ sound: it checks K - (u-shift)^2/2 == j0 + j*u - u^2/2 as polynomials in u, so
+\\ a wrong K OR shift is caught here (the FTC gate alone cannot, since g_shifted
+\\ is built from the same shift). j0,j,V flow in solely to express that identity.
+(define gd-emit
+  Coef [Shift K] J0 J V Hi
+    -> (let Arg [(ct-plus) Hi [(ct-times) [int -1] Shift]]
+            R  [(ct-times) Coef [(gd-exp) K] [(gd-ncdf) Arg]]
+            GS [(ct-times) Coef [(gd-exp) K] [(gd-npdf) Arg]]
+            (if (and (gd-csq-ok? Shift K J0 J V)
+                     (and (gd-ftc-ok? R GS Hi) (gd-vanishes? R Hi)))
+                [some R]
+                [none]))
+  _ _ _ _ _ _ -> [none])
+
+\\ GATE-0 square-completion identity (exact, the soundness keystone). The matched
+\\ integrand exponent (including phi's implicit -u^2/2) is  j0 + j*u - u^2/2.
+\\ csq-vertex claims it equals  K - (u-Shift)^2/2. This MUST hold identically in
+\\ u; we verify it by Expand-ing the difference to 0. This is the lemma that
+\\ licenses Exp[K]*phi(u-Shift) == Exp[j0+j*u]*phi(u) (= g(u)), so g_shifted at
+\\ u=c is g_at_c -- the FTC the prompt requires. A wrong K or Shift -> nonzero.
+(define gd-csq-ok?
+  Shift K J0 J V
+    -> (content-eq
+         (reduce [[sym (protect Expand)]
+                   [(ct-plus) (gd-csq-vertex-poly Shift K V)
+                              [(ct-times) [int -1] (gd-csq-integrand-poly J0 J V)]]])
+         [int 0]))
+
+\\ K - (1/2)(u - Shift)^2
+(define gd-csq-vertex-poly
+  Shift K V -> [(ct-plus) K
+                 [(ct-times) [rat -1 2]
+                   [(ct-power) [(ct-plus) V [(ct-times) [int -1] Shift]] [int 2]]]])
+
+\\ j0 + j*u - (1/2)u^2
+(define gd-csq-integrand-poly
+  J0 J V -> [(ct-plus) J0 [(ct-times) J V]
+              [(ct-times) [rat -1 2] [(ct-power) V [int 2]]]])
+
+\\ GATE-1 shifted-FTC (exact). D[R,Hi] must reduce to g_shifted. This closes via
+\\ the Wave-1 chain rule D[NormalCDF[c-s],c]=NormalPDF[c-s] (boot/calculus.shen,
+\\ tc-normal-tests G3), confirming R is the antiderivative of g_shifted under the
+\\ linear shift. Combined with GATE-0 (g_shifted == g_at_c) this is the full FTC.
+(define gd-ftc-ok?
+  R GS Hi -> (content-eq
+               (reduce [[sym (protect Simplify)]
+                         [(ct-plus) [[sym (protect D)] R Hi]
+                                    [(ct-times) [int -1] GS]]])
+               [int 0]))
+
+\\ GATE-2 lower-limit vanish (sound; no NormalCDF[-Inf]=0 rule in the kernel).
+\\ Every additive term of R must carry exactly one NormalCDF[Arg] with Arg linear
+\\ in Hi and positive lead (so Hi->-Inf drives Arg->-Inf, N(-Inf)=0), all other
+\\ factors free of Hi. A Plus requires EVERY summand to pass.
+(define gd-vanishes?
+  [[sym S] | Terms] C -> (gd-vanish-dispatch (str S) Terms C)
+  _ _ -> false)
+
+(define gd-vanish-dispatch
+  "Plus"  Terms C -> (gd-vanish-all Terms C)
+  "Times" Terms C -> (gd-vanish-times Terms C false)
+  _ _ _ -> false)
+
+(define gd-vanish-all
+  [] _ -> true
+  [T | Ts] C -> (if (gd-vanishes? T C) (gd-vanish-all Ts C) false))
+
+(define gd-vanish-times
+  [] _ Found -> Found
+  [[[sym S] Arg] | Fs] C Found -> (gd-vanish-factor (str S) Arg Fs C Found)
+  [F | Fs] C Found -> (if (free-of? F C) (gd-vanish-times Fs C Found) false))
+
+(define gd-vanish-factor
+  "NormalCDF" Arg Fs C _ -> (if (gd-arg-lin-pos? Arg C) (gd-vanish-times Fs C true) false)
+  _ Arg Fs C Found -> (if (free-of? Arg C) (gd-vanish-times Fs C Found) false))
+
+(define gd-arg-lin-pos?
+  Arg C -> (gd-lead-pos? (expr->coeffs C Arg)))
+
+(define gd-lead-pos?
+  [some CV] -> (and (= (coeffs-deg CV) 1) (positive-expr? (coeffs-lead CV)))
+  _ -> false)
+
+(output "calc-helpers.shen loaded (SameQ/UnsameQ/FreeQ/NumberQ/Positive/And/Simplify + free-of? + collect-like-terms + integrate-by-parts + gauss-definite).~%")
