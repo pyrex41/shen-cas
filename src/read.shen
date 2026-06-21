@@ -14,9 +14,12 @@
 
 \\ --- Real char-by-char tokenizer (SCUD 16 Wave A) ---
 \\ Vocabulary consumed by p-factor/p-infix/p-pat:
-\\   [num N] [id Name] lbrack rbrack lparen rparen comma
+\\   [num N] [dec P Q] [id Name] lbrack rbrack lparen rparen comma
 \\   plus star pow slash colon-eq  blank1 blank2 blank3
 \\ Whitespace skipped. Multi-digit ints (with optional leading '-').
+\\ Decimal literals (e.g. 0.2, 1.5, .25) tokenize to [dec P Q] = the EXACT
+\\ rational P/Q (0.2 -> [dec 2 10]); p-factor folds it via make-rat to [rat 1 5].
+\\ This keeps the whole numeric tower exact (num.shen never uses native floats).
 \\ Identifiers: letter then letters/digits. Underscores AFTER an id => blankN.
 \\ A bare run of underscores (no preceding id) also tokenizes to blankN.
 
@@ -56,6 +59,9 @@
                       ((= C "=") (tok-eq S Acc))
                       ((= C "_") (tok-blank S 0 Acc))
                       ((= C "-") (tok R [dash | Acc]))
+                      ((= C ".") (if (dot-frac? S)
+                                     (tok-frac R 0 0 1 Acc)
+                                     (error "tokenize: bad char ~A" C)))
                       ((digit? C) (tok-num S 0 Acc))
                       ((letter? C) (tok-id S "" Acc))
                       (true (error "tokenize: bad char ~A" C)))))
@@ -76,10 +82,37 @@
 
 \\ '-' is always a 'dash' token; the parser decides unary (negation) vs binary
 \\ (subtraction). This keeps "x-1" = Plus[x,-1], not the wrong Times[x,-1].
+\\ tok-num: consume digits into integer N. On a '.' followed by a digit, switch
+\\ to fractional accumulation (tok-frac); otherwise emit [num N]. A trailing '.'
+\\ (no digit after) is NOT consumed here, so it surfaces as a 'bad char' error.
 (define tok-num
-  S N Acc -> (if (or (= S "") (not (digit? (pos S 0))))
-                 (tok S [[num N] | Acc])
-                 (tok-num (tlstr S) (+ (* N 10) (- (string->n (pos S 0)) 48)) Acc)))
+  S N Acc -> (cond ((= S "") (tok S [[num N] | Acc]))
+                   ((digit? (pos S 0))
+                    (tok-num (tlstr S) (+ (* N 10) (- (string->n (pos S 0)) 48)) Acc))
+                   ((dot-frac? S) (tok-frac (tlstr S) N 0 1 Acc))
+                   (true (tok S [[num N] | Acc]))))
+
+\\ true iff S starts with '.' immediately followed by a digit (a decimal point,
+\\ not a stray dot). Used to decide whether '.' begins a fractional part.
+(define dot-frac?
+  S -> (and (= (pos S 0) ".")
+            (let R (tlstr S)
+                 (and (not (= R "")) (digit? (pos R 0))))))
+
+\\ tok-frac: accumulate fractional digits after the decimal point.
+\\   Int   = integer part already parsed
+\\   FracN = fractional digits as an integer (e.g. "25" -> 25)
+\\   Den   = 10^(digits consumed) (the fraction's denominator)
+\\ Emits [dec P Den] where P = Int*Den + FracN, i.e. the exact rational Int.FracN.
+(define tok-frac
+  S Int FracN Den Acc ->
+    (if (and (not (= S "")) (digit? (pos S 0)))
+        (tok-frac (tlstr S)
+                  Int
+                  (+ (* FracN 10) (- (string->n (pos S 0)) 48))
+                  (* Den 10)
+                  Acc)
+        (tok S [[dec (+ (* Int Den) FracN) Den] | Acc])))
 
 (define tok-id
   S Name Acc -> (if (or (= S "") (not (alnum? (pos S 0))))
@@ -182,6 +215,7 @@
 
 (define factor-start?
   [num _] -> true
+  [dec _ _] -> true
   [id _] -> true
   lparen -> true
   _ -> false)
@@ -240,6 +274,8 @@
                         Rest2 (tl Pair)
                         [(negate V) | Rest2])
   [[num N] | Rest] -> [(int* N) | Rest]
+  \\ decimal literal: fold the exact rational P/Q (make-rat reduces, e.g. 2/10 -> 1/5)
+  [[dec P Q] | Rest] -> [(make-rat P Q) | Rest]
   [[id Name] | [lbrack | Rest]] ->
     (let PairA (p-arglist Rest)
          Args (hd PairA)
@@ -298,6 +334,7 @@
   [[id Name] | [blank2 | Rest]] -> [(named-pat (intern Name) (blank-seq-pat)) | Rest]
   [[id Name] | [blank3 | Rest]] -> [(named-pat (intern Name) (blank-null-pat)) | Rest]
   [[num N] | Rest] -> [(int* N) | Rest]
+  [[dec P Q] | Rest] -> [(make-rat P Q) | Rest]
   [[id Name] | [lbrack | Rest]] ->
     (let PairA (p-pat-arglist Rest)
          Args (hd PairA)
