@@ -30,6 +30,8 @@
       (protect Equal) (protect Solve)
       \\ SCUD 20 Wave E: Taylor Series + Limit heads.
       (protect Series) (protect Limit)
+      \\ Wave 4: Variance / Skew assembly heads (wired builtins, not rule RHS heads).
+      (protect Variance) (protect Skew)
       (protect Plus) (protect Times)])
 
 (define known-symbol?

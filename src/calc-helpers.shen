@@ -63,7 +63,11 @@
   "NumberQ"  [E]   -> [some (bool->expr (number-expr? E))]
   "Positive" [E]   -> [some (bool->expr (positive-expr? E))]
   "And"      Args  -> [some (bool->expr (all-true? Args))]
-  "Simplify" [E]   -> [some (collect-like-terms E)]
+  \\ Wave 4 MUST: collect-like-terms PRIMARY (preserves trig/Pythagorean folds +
+  \\ the diff-back integration gate), then a GATED multivariate poly-expand that
+  \\ commits only when sample-invariant AND not structurally larger. Lets Simplify
+  \\ PROVE multivariate polynomial identities zero while staying idempotent.
+  "Simplify" [E]   -> [some (simplify-mv E)]
   \\ SCUD 17 Wave B: polynomial normal form + PolynomialQ (src/poly.shen).
   "Expand"      [E]   -> [some (poly-expand E)]
   "PolynomialQ" [E V] -> [some (bool->expr (polynomial-q? E V))]
@@ -72,8 +76,10 @@
   \\ rational function, on int64 overflow, or if a self-check (divisibility /
   \\ Expand round-trip) fails. SOUND > COMPLETE.
   "PolynomialGCD" [A B] -> (poly-gcd-builtin A B)
-  "Cancel"        [E]   -> (cancel-builtin E)
-  "Together"      [E]   -> (together-builtin E)
+  \\ Wave 4 CORE/STRETCH: univariate path FIRST (byte-identical goldens); on its
+  \\ [none] branch fall back to the multivariate POLY-map Together/Cancel.
+  "Cancel"        [E]   -> (mvr-cancel-dispatch E)
+  "Together"      [E]   -> (mvr-together-dispatch E)
   "Factor"        [P]   -> (factor-builtin P)
   "Apart"         [E]   -> (apart-builtin E)
   \\ SCUD 19 Wave D: Solve polynomial equations in one variable over Q
@@ -106,7 +112,68 @@
   \\ discount). Declines ([none]) -> head stays inert unless X is a positive
   \\ int literal and the per-term gates all fire. Closed form NEVER pasted.
   "ExpectationPutNormal" [X K A B R T V] -> (expect-put-normal X K A B R T V)
+  \\ Wave 4 GOAL: assemble Var[P] = E[P^2]-E[P]^2 and Skew[P] from the Wave-3
+  \\ moments. The compact collected numerator EMERGES from poly-expand over the
+  \\ opaque generators {Exp[K_j], NormalCDF[arg_j], k}; Var^(3/2) rides opaque.
+  \\ DERIVED, never tabulated -- no Appendix-A subexpression, no d1/d2.
+  "Variance" [X K A B R T V] -> (variance-put X K A B R T V)
+  "Skew"     [X K A B R T V] -> (skew-put X K A B R T V)
   _ _ -> [none])
+
+\\ ============================================================================
+\\ Wave 4 dispatchers + Simplify post-pass (defs in src/multipoly.shen).
+\\ ============================================================================
+(define simplify-mv
+  E -> (let C (collect-like-terms E)
+            (if (mv-eligible? C) (mv-commit-or C (multi-normalize C)) C)))
+
+(define mv-commit-or
+  C [some P] -> P
+  C [none]   -> C)
+
+\\ Univariate path FIRST (byte-identical goldens); fall to the multivariate builtin
+\\ on decline. mtogether is now un-gated (value-preserving common denominator) so the
+\\ Together fallback is cheap. mcancel keeps its sample-invariant gate (cancellation
+\\ can lose information) but is exact-divisibility-checked (poly-eq?) and fast-declines
+\\ on non-Divide / no-common-factor inputs, so it is not on the hot path.
+(define mvr-together-dispatch
+  E -> (let U (together-builtin E) (if (= U [none]) (mtogether-builtin E) U)))
+
+(define mvr-cancel-dispatch
+  E -> (let U (cancel-builtin E) (if (= U [none]) (mcancel-builtin E) U)))
+
+\\ ============================================================================
+\\ Wave 4 GOAL: Variance / Skew assembly from the Wave-3 moments.
+\\   moment N = E[P^N] (a Plus of coef*Exp[K_j]*NormalCDF[arg_j] terms / [none]).
+\\   Var  = E[P^2] - E[P]^2          (collected multivariate poly)
+\\   Skew = (E[P^3]-3 E[P] E[P^2]+2 E[P]^3) / Var^(3/2)
+\\ poly-expand distributes the products M1*M2, M1^3 over the opaque generators
+\\ and collects like monomials; Var^(3/2) is carried as an opaque Power factor
+\\ ([rat 3 -2] exponent is non-integer, so poly-of-power leaves it opaque). Only
+\\ the definitional binomial constants -3, 2, 3/2 appear. No d1/d2, ever.
+\\ ============================================================================
+(define moment
+  N K A B R T V -> (expect-put-normal [int N] K A B R T V))
+
+(define variance-put
+  X K A B R T V -> (vp (moment 1 K A B R T V) (moment 2 K A B R T V)))
+
+(define vp
+  [some M1] [some M2]
+    -> [some (poly-expand [(ct-plus) M2 [(ct-times) [int -1] [(ct-power) M1 [int 2]]]])]
+  _ _ -> [none])
+
+(define skew-put
+  X K A B R T V -> (sp (moment 1 K A B R T V) (moment 2 K A B R T V) (moment 3 K A B R T V)))
+
+(define sp
+  [some M1] [some M2] [some M3]
+    -> (let Num (poly-expand [(ct-plus) M3
+                               [(ct-times) [int -3] M1 M2]
+                               [(ct-times) [int 2] [(ct-power) M1 [int 3]]]])
+            Var (poly-expand [(ct-plus) M2 [(ct-times) [int -1] [(ct-power) M1 [int 2]]]])
+            [some [(ct-times) Num [(ct-power) Var [rat 3 -2]]]])
+  _ _ _ -> [none])
 
 \\ SCUD 21 wired Integrate dispatch: position-independent constant-factor
 \\ pull-out FIRST (Times is Orderless, so a constant may sit anywhere after the

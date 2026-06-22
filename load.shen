@@ -27,6 +27,12 @@
 \\ SCUD 18 Wave C: univariate polynomial algebra (PolynomialGCD/Cancel/Together/
 \\ Factor); needs poly.shen + num.shen + calc-helpers' free-of?/free-symbols.
 (load "src/polyalg.shen")
+\\ Wave 4: multivariate rational normal form over Q (sample-invariant gate +
+\\ multivariate Simplify/Together/Cancel). Needs poly.shen POLY ops + polyalg's
+\\ free-sym-names + num.shen + store.shen content-eq/content-hash. simplify-mv /
+\\ Variance / Skew in calc-helpers only CALL into here at reduce time, so loading
+\\ after polyalg (and after calc-helpers' defs exist) suffices.
+(load "src/multipoly.shen")
 \\ SCUD 19 Wave D: solve polynomial equations in one var over Q (Solve / == reader);
 \\ needs polyalg's coeff-vector bridge + Factor, num.shen, calc-helpers' free-of?.
 (load "src/solve.shen")
@@ -53,5 +59,6 @@
 (load "test/test-solve.shen")     \\ SCUD 19 Wave D: defines run-solve-tests
 (load "test/test-series.shen")    \\ SCUD 20 Wave E: defines run-series-tests
 (load "test/test-properties.shen") \\ Property-style checks beyond exact goldens
+(load "test/test-multipoly.shen") \\ Wave 4: multivariate Simplify/Together/Cancel + skew oracle
 (load "test/test-external-corpus.shen")  \\ Rubi/SymPy corpus: defines run-external-corpus-tests
 (load "test/test.shen")

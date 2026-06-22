@@ -193,15 +193,18 @@
           T2 (check-together "1/(x-1)+1/(x+1)" "1/(x-1)+1/(x+1)")
           T3 (check-together "1/x + 1/(x+1)" "1/x+1/(x+1)")
           \\ --- inert edges (multivariate) ---
+          \\ PolynomialGCD / Factor stay univariate-only -> inert on multivariate.
           I1 (check-inert "PolynomialGCD[x*y, x]"
                 [[sym (protect PolynomialGCD)] (pa-read "x*y") (pa-read "x")]
                 "PolynomialGCD")
           I2 (check-inert "Factor[x*y+x]"
                 [[sym (protect Factor)] (pa-read "x*y+x")]
                 "Factor")
-          I3 (check-inert "Together[1/x+1/y] (multivariate)"
-                [[sym (protect Together)] (pa-read "1/x+1/y")]
-                "Together")
+          \\ Wave 4: the classic two-variable 1/x+1/y is NO LONGER inert -- the
+          \\ multivariate Together fallback combines it over a common denominator.
+          \\ Verified by the same x,y sample-equivalence check as the univariate
+          \\ Together goldens (head must change away from Together, value preserved).
+          I3 (check-together "1/x+1/y (multivariate, Wave 4)" "1/x+1/y")
           Ok (pa-all-true? [G1 G2 G3 F1 F2 F3 F4 F5 C1 T1 T2 T3 I1 I2 I3])
           (do (if Ok (output "polyalg (SCUD 18 Wave C): PASS~%")
                   (output "polyalg (SCUD 18 Wave C): FAIL~%"))
