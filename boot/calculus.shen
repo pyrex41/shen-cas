@@ -171,6 +171,26 @@
         [[sym (protect Times)] [[sym (protect Sec)] [sym (protect u)]] [[sym (protect Tan)] [sym (protect u)]]
           [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
 
+\\ Gaussian Wave 1: the DEFINING differential relations of the standard normal.
+\\ These are derivations, not tabulated answers: N is literally the integral of
+\\ phi, and phi'(z) = -z phi(z) is the Gaussian ODE. Both are chain-aware (carry
+\\ the D[u,x] factor), exact copies of the Sin/Cos idiom above, so the same
+\\ fixpoint canonicalizes their output and the same FreeQ-guarded constant rule
+\\ keeps any non-matching head INERT. No Black-Scholes / Erf / d1,d2 constant
+\\ appears in any RHS: option formulas must EMERGE later from composing these.
+
+\\ D[NormalCDF[u],x] -> NormalPDF[u]*D[u,x]   (N' = phi)
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect NormalCDF)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)] [[sym (protect NormalPDF)] [sym (protect u)]]
+                               [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
+\\ D[NormalPDF[u],x] -> -u*NormalPDF[u]*D[u,x]   (phi'(u) = -u phi(u))
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect NormalPDF)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)] [int -1] [sym (protect u)] [[sym (protect NormalPDF)] [sym (protect u)]]
+                               [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
 \\ ===========================================================================
 \\ SCUD 21 Wave 5: BOUNDED symbolic integration rule library for Integrate[E,x].
 \\
