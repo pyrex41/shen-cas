@@ -1099,6 +1099,9 @@
                     (run-series-tests) (run-property-tests)
                     (run-multipoly-tests)
                     (run-trace-tests)
+                    (run-series-tests) (run-numfun-tests) (run-elemlib-tests)
+                    (run-numtheory-tests) (run-ratint-tests) (run-pfrac-tests)
+                    (run-trigint-tests) (run-property-tests)
                     (run-external-corpus-tests))
             (do (if Ok (output "~%ALL PASS~%") (output "~%SOME FAIL~%")) Ok)))
 

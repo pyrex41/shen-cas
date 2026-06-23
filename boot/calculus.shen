@@ -190,6 +190,79 @@
   (rule [[sym (protect D)] [[sym (protect NormalPDF)] [named (protect u) [blank]]] [named (protect x) [blank]]]
         [[sym (protect Times)] [int -1] [sym (protect u)] [[sym (protect NormalPDF)] [sym (protect u)]]
                                [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+\\ ---------------------------------------------------------------------------
+\\ 8b. Elementary-library expansion: reciprocal-trig + hyperbolic + inverse-
+\\     hyperbolic chain rules (each: outer-derivative * D[u,x]). All are
+\\     unimpeachable identities; differentiate-back keeps the new integrals sound.
+\\ ---------------------------------------------------------------------------
+\\ D[Cot[u],x] -> -Csc[u]^2 * D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect Cot)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)] [int -1] [[sym (protect Power)] [[sym (protect Csc)] [sym (protect u)]] [int 2]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
+\\ D[Csc[u],x] -> -Csc[u]*Cot[u] * D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect Csc)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)] [int -1] [[sym (protect Csc)] [sym (protect u)]] [[sym (protect Cot)] [sym (protect u)]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
+\\ D[Sinh[u],x] -> Cosh[u]*D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect Sinh)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)] [[sym (protect Cosh)] [sym (protect u)]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
+\\ D[Cosh[u],x] -> Sinh[u]*D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect Cosh)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)] [[sym (protect Sinh)] [sym (protect u)]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
+\\ D[Tanh[u],x] -> Sech[u]^2 * D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect Tanh)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)] [[sym (protect Power)] [[sym (protect Sech)] [sym (protect u)]] [int 2]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
+\\ D[Coth[u],x] -> -Csch[u]^2 * D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect Coth)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)] [int -1] [[sym (protect Power)] [[sym (protect Csch)] [sym (protect u)]] [int 2]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
+\\ D[Sech[u],x] -> -Sech[u]*Tanh[u] * D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect Sech)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)] [int -1] [[sym (protect Sech)] [sym (protect u)]] [[sym (protect Tanh)] [sym (protect u)]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
+\\ D[Csch[u],x] -> -Csch[u]*Coth[u] * D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect Csch)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)] [int -1] [[sym (protect Csch)] [sym (protect u)]] [[sym (protect Coth)] [sym (protect u)]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
+\\ D[ArcSinh[u],x] -> (1+u^2)^(-1/2) * D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect ArcSinh)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)]
+          [[sym (protect Power)] [[sym (protect Plus)] [int 1] [[sym (protect Power)] [sym (protect u)] [int 2]]] [rat -1 2]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
+\\ D[ArcCosh[u],x] -> (u^2-1)^(-1/2) * D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect ArcCosh)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)]
+          [[sym (protect Power)] [[sym (protect Plus)] [int -1] [[sym (protect Power)] [sym (protect u)] [int 2]]] [rat -1 2]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
+
+\\ D[ArcTanh[u],x] -> (1-u^2)^(-1) * D[u,x]
+(register-rule
+  (rule [[sym (protect D)] [[sym (protect ArcTanh)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+        [[sym (protect Times)]
+          [[sym (protect Power)] [[sym (protect Plus)] [int 1] [[sym (protect Times)] [int -1] [[sym (protect Power)] [sym (protect u)] [int 2]]]] [int -1]]
+          [[sym (protect D)] [sym (protect u)] [sym (protect x)]]]))
 
 \\ ===========================================================================
 \\ SCUD 21 Wave 5: BOUNDED symbolic integration rule library for Integrate[E,x].
@@ -246,6 +319,107 @@
   (rule [condition [[sym (protect Integrate)] [[sym (protect Exp)] [named (protect u) [blank]]] [named (protect x) [blank]]]
                    [[sym (protect SameQ)] [sym (protect u)] [sym (protect x)]]]
         [[sym (protect Exp)] [sym (protect x)]]))
+
+\\ Integrate[Sinh[x],x] -> Cosh[x]  (hyperbolic table; differentiate-back verifies)
+(register-rule
+  (rule [condition [[sym (protect Integrate)] [[sym (protect Sinh)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+                   [[sym (protect SameQ)] [sym (protect u)] [sym (protect x)]]]
+        [[sym (protect Cosh)] [sym (protect x)]]))
+
+\\ Integrate[Cosh[x],x] -> Sinh[x]
+(register-rule
+  (rule [condition [[sym (protect Integrate)] [[sym (protect Cosh)] [named (protect u) [blank]]] [named (protect x) [blank]]]
+                   [[sym (protect SameQ)] [sym (protect u)] [sym (protect x)]]]
+        [[sym (protect Sinh)] [sym (protect x)]]))
+
+\\ ---------------------------------------------------------------------------
+\\ I2t. Trigonometric antiderivative table (bare-variable arg only).
+\\      Each is a SOUND identity verified by differentiate-back against the
+\\      existing D rules (D[Tan]=Sec^2, D[Cot]=-Csc^2, D[Sec]=Sec*Tan,
+\\      D[Csc]=-Csc*Cot, D[(1/2)Sin^2]=Sin*Cos). The power-reduction forms for
+\\      Sin^2/Cos^2 are trusted closed forms (differentiate-back needs the
+\\      Pythagorean identity the simplifier lacks; checked by content-eq in tests).
+\\      All guarded by SameQ so they fire ONLY on the bare integration variable.
+\\
+\\      NOTE on Times-orderless matching: Times is Orderless/Flat, so the two
+\\      factors of Sec[u]*Tan[u2] may appear in either canonical order. We bind
+\\      BOTH factors' arguments and guard And[SameQ[u,x],SameQ[u2,x]] -- this is
+\\      order-independent because both factor heads are distinct and each must
+\\      have argument x; the AC matcher tries both pairings and the guard accepts
+\\      whichever assigns each argument to x. (Tested in test/test-trigint.shen.)
+\\ ---------------------------------------------------------------------------
+
+\\ Integrate[Sec[x]^2,x] -> Tan[x]
+(register-rule
+  (rule [condition [[sym (protect Integrate)]
+                     [[sym (protect Power)] [[sym (protect Sec)] [named (protect u) [blank]]] [int 2]]
+                     [named (protect x) [blank]]]
+                   [[sym (protect SameQ)] [sym (protect u)] [sym (protect x)]]]
+        [[sym (protect Tan)] [sym (protect x)]]))
+
+\\ Integrate[Csc[x]^2,x] -> -Cot[x]
+(register-rule
+  (rule [condition [[sym (protect Integrate)]
+                     [[sym (protect Power)] [[sym (protect Csc)] [named (protect u) [blank]]] [int 2]]
+                     [named (protect x) [blank]]]
+                   [[sym (protect SameQ)] [sym (protect u)] [sym (protect x)]]]
+        [[sym (protect Times)] [int -1] [[sym (protect Cot)] [sym (protect x)]]]))
+
+\\ Integrate[Sec[x]*Tan[x],x] -> Sec[x]   (Times orderless: bind both args, guard both = x)
+(register-rule
+  (rule [condition [[sym (protect Integrate)]
+                     [[sym (protect Times)]
+                       [[sym (protect Sec)] [named (protect u) [blank]]]
+                       [[sym (protect Tan)] [named (protect u2) [blank]]]]
+                     [named (protect x) [blank]]]
+                   [[sym (protect And)]
+                     [[sym (protect SameQ)] [sym (protect u)] [sym (protect x)]]
+                     [[sym (protect SameQ)] [sym (protect u2)] [sym (protect x)]]]]
+        [[sym (protect Sec)] [sym (protect x)]]))
+
+\\ Integrate[Csc[x]*Cot[x],x] -> -Csc[x]
+(register-rule
+  (rule [condition [[sym (protect Integrate)]
+                     [[sym (protect Times)]
+                       [[sym (protect Csc)] [named (protect u) [blank]]]
+                       [[sym (protect Cot)] [named (protect u2) [blank]]]]
+                     [named (protect x) [blank]]]
+                   [[sym (protect And)]
+                     [[sym (protect SameQ)] [sym (protect u)] [sym (protect x)]]
+                     [[sym (protect SameQ)] [sym (protect u2)] [sym (protect x)]]]]
+        [[sym (protect Times)] [int -1] [[sym (protect Csc)] [sym (protect x)]]]))
+
+\\ Integrate[Sin[x]*Cos[x],x] -> (1/2) Sin[x]^2
+(register-rule
+  (rule [condition [[sym (protect Integrate)]
+                     [[sym (protect Times)]
+                       [[sym (protect Sin)] [named (protect u) [blank]]]
+                       [[sym (protect Cos)] [named (protect u2) [blank]]]]
+                     [named (protect x) [blank]]]
+                   [[sym (protect And)]
+                     [[sym (protect SameQ)] [sym (protect u)] [sym (protect x)]]
+                     [[sym (protect SameQ)] [sym (protect u2)] [sym (protect x)]]]]
+        [[sym (protect Times)] [rat 1 2] [[sym (protect Power)] [[sym (protect Sin)] [sym (protect x)]] [int 2]]]))
+
+\\ Integrate[Sin[x]^2,x] -> x/2 - (1/2) Sin[x] Cos[x]   (power reduction; trusted identity)
+(register-rule
+  (rule [condition [[sym (protect Integrate)]
+                     [[sym (protect Power)] [[sym (protect Sin)] [named (protect u) [blank]]] [int 2]]
+                     [named (protect x) [blank]]]
+                   [[sym (protect SameQ)] [sym (protect u)] [sym (protect x)]]]
+        [[sym (protect Plus)]
+          [[sym (protect Times)] [rat 1 2] [sym (protect x)]]
+          [[sym (protect Times)] [rat -1 2] [[sym (protect Sin)] [sym (protect x)]] [[sym (protect Cos)] [sym (protect x)]]]]))
+
+\\ Integrate[Cos[x]^2,x] -> x/2 + (1/2) Sin[x] Cos[x]   (power reduction; trusted identity)
+(register-rule
+  (rule [condition [[sym (protect Integrate)]
+                     [[sym (protect Power)] [[sym (protect Cos)] [named (protect u) [blank]]] [int 2]]
+                     [named (protect x) [blank]]]
+                   [[sym (protect SameQ)] [sym (protect u)] [sym (protect x)]]]
+        [[sym (protect Plus)]
+          [[sym (protect Times)] [rat 1 2] [sym (protect x)]]
+          [[sym (protect Times)] [rat 1 2] [[sym (protect Sin)] [sym (protect x)]] [[sym (protect Cos)] [sym (protect x)]]]]))
 
 \\ ---------------------------------------------------------------------------
 \\ I3. Linear u-substitution (Sin/Cos/Exp of a*x+b) is handled by the WIRED

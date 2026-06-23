@@ -27,3 +27,7 @@ golden-failures/
 
 # Kernel cache
 .shen-kernel-cache.bin
+
+# npm deps for the ShenScript runner (scripts/)
+node_modules/
+package-lock.json

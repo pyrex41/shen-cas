@@ -118,6 +118,36 @@
   \\ DERIVED, never tabulated -- no Appendix-A subexpression, no d1/d2.
   "Variance" [X K A B R T V] -> (variance-put X K A B R T V)
   "Skew"     [X K A B R T V] -> (skew-put X K A B R T V)
+  \\ Elementary & number-theory function layer (src/numfun.shen). Each declines
+  \\ ([none]) -> the head stays inert when the argument is symbolic / outside the
+  \\ exact numeric domain / on int64 overflow. SOUND > COMPLETE.
+  "Abs"            [E]   -> (nf-abs E)
+  "Sign"           [E]   -> (nf-sign E)
+  "Floor"          [E]   -> (nf-floor E)
+  "Ceiling"        [E]   -> (nf-ceiling E)
+  "Round"          [E]   -> (nf-round E)
+  "IntegerPart"    [E]   -> (nf-intpart E)
+  "FractionalPart" [E]   -> (nf-fracpart E)
+  "Mod"            [A B] -> (nf-mod A B)
+  "Quotient"       [A B] -> (nf-quotient A B)
+  "GCD"            Args  -> (nf-gcd Args)
+  "LCM"            Args  -> (nf-lcm Args)
+  "Factorial"      [E]   -> (nf-factorial E)
+  "Binomial"       [A B] -> (nf-binomial A B)
+  "Max"            Args  -> (nf-max Args)
+  "Min"            Args  -> (nf-min Args)
+  \\ Number theory (src/numfun.shen): decidable integer predicates + bounded
+  \\ primality / sequences. Decline ([none]) -> inert outside the integer domain,
+  \\ on int64 overflow, or beyond the trial bound. SOUND > COMPLETE.
+  "EvenQ"     [E]     -> (nf-evenq E)
+  "OddQ"      [E]     -> (nf-oddq E)
+  "Divisible" [A B]   -> (nf-divisible A B)
+  "CoprimeQ"  [A B]   -> (nf-coprimeq A B)
+  "PrimeQ"    [E]     -> (nf-primeq E)
+  "NextPrime" [E]     -> (nf-nextprime E)
+  "Prime"     [E]     -> (nf-prime E)
+  "Fibonacci" [E]     -> (nf-fibonacci E)
+  "PowerMod"  [A B M] -> (nf-powermod A B M)
   _ _ -> [none])
 
 \\ ============================================================================
@@ -261,8 +291,356 @@
 (define integrate-after-apart
   Integrand V -> (let Q (integrate-arctan-shift Integrand V)
                       (if (= Q [none])
-                          (integrate-by-parts Integrand V)
+                          (integrate-after-arctan-shift Integrand V)
                           Q)))
+
+\\ MERGE (PR #8): after the Gaussian/Tier-2/3 table + apart/arctan-shift decline,
+\\ consult PR #8's more general rational-function integrator (improper long division,
+\\ mixed simple-roots + quadratic cover-up, cancel-then-reintegrate). Both paths are
+\\ recombination/diff-back gated, so chaining is sound; by-parts stays the final fallback.
+(define integrate-after-arctan-shift
+  Integrand V -> (let R (integrate-rational Integrand V)
+                      (if (= R [none])
+                          (integrate-by-parts Integrand V)
+                          R)))
+\\ ============================================================================
+\\ Rational-function integration (Wave 4). Two sound strategies for a Divide[N,D]
+\\ integrand, consulted after the antiderivative table and before by-parts:
+\\
+\\   (1) Cancel-then-integrate: reduce N/D to lowest terms (polyalg Cancel) and,
+\\       if it changed, integrate the simpler form through the full evaluator.
+\\       Re-routes e.g. (x+1)/(x^2-1) -> 1/(x-1) -> Log[x-1]. Committed only when
+\\       the re-integration fully resolves (no residual Integrate head).
+\\
+\\   (2) Quadratic denominator (deg_V D = 2, deg_V N <= 1):
+\\        - discriminant < 0 (irreducible): complete the square ->
+\\            (n1/2a) Log[D] + ((n0 - n1 b/2a)/(a k)) ArcTan[(x + b/2a)/k],  k=Sqrt[(4ac-b^2)/4a^2]
+\\          (a standard exact identity; spot-checked by the test corpus).
+\\        - two distinct rational roots: cover-up partial fractions ->
+\\            A1 Log[x-r1] + A2 Log[x-r2],  Ai = N(ri)/D'(ri)
+\\          VERIFIED un-foolably: N == a*(A1 (x-r2) + A2 (x-r1)) as polynomials.
+\\
+\\ Anything outside these shapes declines ([none]) -> by-parts / inert. Built on
+\\ polyalg (expr->coeffs/vec-eval/vec-deriv/coeffs->expr/rational-roots, all live
+\\ by reduce time) and the num tower.
+\\ ============================================================================
+(define ct-log    -> [sym (protect Log)])
+(define ct-arctan -> [sym (protect ArcTan)])
+(define ct-sqrt   -> [sym (protect Sqrt)])
+
+(define integrate-rational
+  [[sym S] N D] V -> (if (= (str S) "Divide") (irat-divide N D V) [none])
+  _ _ -> [none])
+
+(define irat-divide
+  N D V -> (irat-try-cancel N D V (cancel-builtin [(ct-divide) N D])))
+
+(define irat-try-cancel
+  N D V [some Res] -> (if (content-eq Res [(ct-divide) N D])
+                          (irat-quadratic N D V)
+                          (irat-after-cancel Res N D V))
+  N D V _ -> (irat-quadratic N D V))
+
+(define irat-after-cancel
+  Res N D V -> (let R (normal-form [[sym (protect Integrate)] Res V])
+                   (if (has-integrate-head? R)
+                       (irat-quadratic N D V)
+                       [some R])))
+
+\\ 0-indexed nth coeff (default [int 0] past the end).
+(define irat-nth
+  [] _ -> [int 0]
+  [X | _] 0 -> X
+  [_ | Xs] I -> (irat-nth Xs (- I 1)))
+
+(define irat-neg? E -> (< (rat-num (as-rat E)) 0))
+
+(define irat-quadratic
+  N D V -> (irat-quadratic-or-general N D V (irat-q1 N D V (expr->coeffs V D))))
+
+\\ Preserve the exact degree-2 behavior: if irat-q* produced a result, use it;
+\\ otherwise fall through to the generalized cover-up partial-fraction path.
+(define irat-quadratic-or-general
+  N D V [some R] -> [some R]
+  N D V _ -> (irat-general N D V))
+
+(define irat-q1
+  N D V [some Dv0] -> (irat-q2 N D V (trim-coeffs Dv0))
+  N D V _ -> [none])
+
+(define irat-q2
+  N D V Dv -> (if (= (coeffs-deg Dv) 2) (irat-q3 N D V Dv (expr->coeffs V N)) [none]))
+
+(define irat-q3
+  N D V Dv [some Nv0] -> (irat-q4 D V Dv (trim-coeffs Nv0))
+  N D V Dv _ -> [none])
+
+(define irat-q4
+  D V Dv Nv -> (if (> (coeffs-deg Nv) 1) [none] (irat-q5 D V Dv Nv)))
+
+(define irat-q5
+  D V Dv Nv -> (let A (irat-nth Dv 2)
+                    B (irat-nth Dv 1)
+                    C (irat-nth Dv 0)
+                    Disc (num-sub (num-mul B B) (num-mul [int 4] (num-mul A C)))
+                    (if (irat-neg? Disc)
+                        (irat-arctan D V A B C Nv)
+                        (irat-twolog D V Dv Nv))))
+
+\\ --- irreducible quadratic -> Log + ArcTan (complete the square) ---
+(define irat-arctan
+  D V A B C Nv -> (let TwoA (num-mul [int 2] A)
+                       N0 (irat-nth Nv 0)
+                       N1 (irat-nth Nv 1)
+                       H (num-div B TwoA)
+                       LogCoeff (num-div N1 TwoA)
+                       ArcRat (num-div (num-sub N0 (num-mul N1 H)) A)
+                       MNum (num-sub (num-mul [int 4] (num-mul A C)) (num-mul B B))
+                       MDen (num-mul [int 4] (num-mul A A))
+                       M (num-div MNum MDen)
+                       K [(ct-sqrt) M]
+                       Kinv [(ct-power) K [int -1]]
+                       Arg [(ct-times) [(ct-plus) V H] Kinv]
+                       ArcTerm [(ct-times) ArcRat Kinv [(ct-arctan) Arg]]
+                       LogTerm [(ct-times) LogCoeff [(ct-log) D]]
+                       [some (normal-form [(ct-plus) LogTerm ArcTerm])]))
+
+\\ --- two distinct rational roots -> cover-up partial fractions (2 logs) ---
+(define irat-twolog
+  D V Dv Nv -> (irat-twolog-r V Dv Nv (rational-roots Dv)))
+
+(define irat-twolog-r
+  V Dv Nv [R1 R2] -> (if (num-eq? R1 R2) [none] (irat-twolog-cv V Dv Nv R1 R2))
+  V Dv Nv _ -> [none])
+
+(define irat-twolog-cv
+  V Dv Nv R1 R2 -> (let A (irat-nth Dv 2)
+                        Dp (vec-deriv Dv)
+                        A1 (num-div (vec-eval Nv R1) (vec-eval Dp R1))
+                        A2 (num-div (vec-eval Nv R2) (vec-eval Dp R2))
+                        Cand [(ct-plus) [(ct-times) A1 [(ct-log) (irat-linsub V R1)]]
+                                        [(ct-times) A2 [(ct-log) (irat-linsub V R2)]]]
+                        (if (irat-twolog-ok? Nv A A1 A2 R1 R2)
+                            [some (normal-form Cand)]
+                            [none])))
+
+\\ (x - R) as an expr.
+(define irat-linsub
+  V R -> (coeffs->expr V [(num-mul [int -1] R) [int 1]]))
+
+\\ un-foolable check: N == a*(A1 (x-R2) + A2 (x-R1)) as polynomials.
+(define irat-twolog-ok?
+  Nv A A1 A2 R1 R2 -> (let LV1 [(num-mul [int -1] R2) [int 1]]
+                           LV2 [(num-mul [int -1] R1) [int 1]]
+                           RHS (vec-scale A (vec-add (vec-scale A1 LV1) (vec-scale A2 LV2)))
+                           (irat-vec-eq? (trim-coeffs RHS) (trim-coeffs Nv))))
+
+(define irat-vec-eq?
+  [] [] -> true
+  [X | Xs] [Y | Ys] -> (if (num-eq? X Y) (irat-vec-eq? Xs Ys) false)
+  _ _ -> false)
+
+\\ ============================================================================
+\\ Generalized cover-up partial fractions (Wave 4 extension).
+\\
+\\ Handles a Divide[N,D] integrand whose denominator factors as
+\\     D = (lead) * Prod_i (x - r_i) * Dq
+\\ where the r_i are DISTINCT SIMPLE rational roots and Dq is either a nonzero
+\\ constant (all-linear case) or a single (possibly reducible) quadratic.
+\\ Improper inputs (deg N >= deg D) are split off via polynomial long division
+\\ and the polynomial quotient is integrated termwise.
+\\
+\\ Every candidate is VERIFIED un-foolably: the rational contributions of all the
+\\ emitted pieces are recombined over the common denominator D and the resulting
+\\ numerator vector is compared elementwise with N. If anything is off, or the
+\\ shape is unsupported, the result is [none] and the head stays inert.
+\\ ============================================================================
+(define irat-general
+  N D V -> (irat-g-coeffs N D V (expr->coeffs V N) (expr->coeffs V D)))
+
+(define irat-g-coeffs
+  N D V [some Nv0] [some Dv0] -> (irat-g-split V (trim-coeffs Nv0) (trim-coeffs Dv0))
+  N D V _ _ -> [none])
+
+\\ split off the polynomial part if improper (deg N >= deg D).
+(define irat-g-split
+  V Nv Dv -> (if (empty? Dv)
+                 [none]
+                 (if (< (coeffs-deg Nv) (coeffs-deg Dv))
+                     (irat-g-proper V Nv Dv [int 0])
+                     (irat-g-improper V Nv Dv))))
+
+(define irat-g-improper
+  V Nv Dv -> (irat-g-improper-2 V Dv (uni-divmod Nv Dv)))
+
+(define irat-g-improper-2
+  V Dv [Q R] -> (irat-g-proper V (trim-coeffs R) Dv (irat-g-polyint V Q)))
+
+\\ integrate a polynomial coeff vector termwise: sum c_i x^(i+1)/(i+1).
+(define irat-g-polyint
+  V Vec -> (irat-g-polyint-loop V (trim-coeffs Vec) 0))
+
+(define irat-g-polyint-loop
+  V [] _ -> [int 0]
+  V [C | Cs] I -> (irat-g-plus2 (irat-g-monomial V C I) (irat-g-polyint-loop V Cs (+ I 1))))
+
+(define irat-g-monomial
+  V C I -> (if (num-eq? C [int 0])
+               [int 0]
+               [(ct-times) (num-div C [int (+ I 1)]) [(ct-power) V [int (+ I 1)]]]))
+
+(define irat-g-plus2
+  [int 0] B -> B
+  A [int 0] -> A
+  A B -> [(ct-plus) A B])
+
+\\ proper case: deg N < deg D, PolyPart is the (already built) polynomial integral.
+(define irat-g-proper
+  V Nv Dv PolyPart -> (irat-g-roots V Nv Dv PolyPart (irat-g-simple-roots Dv (rational-roots Dv))))
+
+\\ keep only the SIMPLE roots: D(r)=0 (guaranteed by rational-roots) and D'(r) /= 0.
+(define irat-g-simple-roots
+  Dv Roots -> (irat-g-filter-simple (vec-deriv Dv) Roots))
+
+(define irat-g-filter-simple
+  _ [] -> []
+  Dp [R | Rs] -> (if (num-eq? (vec-eval Dp R) [int 0])
+                     (irat-g-filter-simple Dp Rs)
+                     [R | (irat-g-filter-simple Dp Rs)]))
+
+\\ Dlin = Prod (x - r) over the simple roots.
+(define irat-g-dlin
+  [] -> [[int 1]]
+  [R | Rs] -> (vec-mul [(num-mul [int -1] R) [int 1]] (irat-g-dlin Rs)))
+
+(define irat-g-roots
+  V Nv Dv PolyPart Roots
+    -> (irat-g-leftover V Nv Dv PolyPart Roots
+         (uni-divmod Dv (irat-g-dlin Roots))))
+
+\\ Dq = D / Dlin. Remainder MUST be zero (it always is for genuine factors, but
+\\ we require it explicitly for soundness).
+(define irat-g-leftover
+  V Nv Dv PolyPart Roots [Dq Rem]
+    -> (if (zero-vec? Rem)
+           (irat-g-by-degree V Nv Dv PolyPart Roots (trim-coeffs Dq))
+           [none]))
+
+(define irat-g-by-degree
+  V Nv Dv PolyPart Roots Dq
+    -> (let DegQ (coeffs-deg Dq)
+            (if (< DegQ 0)
+                [none]
+                (if (= DegQ 0)
+                    (irat-g-alllinear V Nv Dv PolyPart Roots Dq)
+                    (if (= DegQ 2)
+                        (if (irat-g-irreducible? Dq)
+                            (irat-g-quadpiece V Nv Dv PolyPart Roots Dq)
+                            [none])
+                        [none])))))
+
+\\ A degree-2 leftover is sound for the ArcTan path ONLY when it is irreducible
+\\ over R (discriminant b^2-4ac < 0). A non-negative discriminant means real roots:
+\\ a repeated root (left in Dq because the simple-root filter dropped it) or
+\\ irrational roots -- neither of which irat-arctan handles soundly (disc=0 yields
+\\ a Sqrt[0]=0 -> 0^-1 division-by-zero). Decline -> inert.
+(define irat-g-irreducible?
+  Dq -> (let A (irat-nth Dq 2)
+             B (irat-nth Dq 1)
+             C (irat-nth Dq 0)
+             Disc (num-sub (num-mul B B) (num-mul [int 4] (num-mul A C)))
+             (irat-neg? Disc)))
+
+\\ cover-up residue for a simple root r: A_r = N(r)/D'(r).
+(define irat-g-residue
+  Nv Dp R -> (num-div (vec-eval Nv R) (vec-eval Dp R)))
+
+\\ list of [R A_r] pairs.
+(define irat-g-residues
+  _ _ [] -> []
+  Nv Dp [R | Rs] -> [[R (irat-g-residue Nv Dp R)] | (irat-g-residues Nv Dp Rs)])
+
+\\ Sum of A_r Log[x - r].
+(define irat-g-logterms
+  V [] -> [int 0]
+  V [[R A] | Ps] -> (irat-g-plus2 [(ct-times) A [(ct-log) (irat-linsub V R)]]
+                                  (irat-g-logterms V Ps)))
+
+\\ --- all-linear case: D = lead * Prod (x - r_i), no leftover quadratic. ---
+(define irat-g-alllinear
+  V Nv Dv PolyPart Roots Dq
+    -> (if (empty? Roots)
+           [none]
+           (let Dp (vec-deriv Dv)
+                Res (irat-g-residues Nv Dp Roots)
+                Cand (irat-g-plus2 PolyPart (irat-g-logterms V Res))
+                (irat-g-verify V Nv Dv PolyPart Res [none] Cand))))
+
+\\ --- one IRREDUCIBLE leftover quadratic: D = lead * Prod (x - r_i) * Dq,
+\\     deg Dq = 2, disc(Dq) < 0 (guaranteed by the caller's irat-g-irreducible?). ---
+\\ (Bx + C) * Dlin = N - Sum A_r * (D / (x - r)).  Divide by Dlin to get (Bx+C),
+\\ then integrate (Bx+C)/Dq by reusing irat-arctan (Log + ArcTan, complete-square).
+(define irat-g-quadpiece
+  V Nv Dv PolyPart Roots Dq
+    -> (let Dp (vec-deriv Dv)
+            Res (irat-g-residues Nv Dp Roots)
+            Dlin (irat-g-dlin Roots)
+            BCnum (vec-sub Nv (irat-g-sum-residue-cofactors Dv Res))
+            (irat-g-quad-divide V Nv Dv PolyPart Res Dlin Dq (uni-divmod BCnum Dlin))))
+
+\\ Sum over roots of A_r * (D / (x - r)).
+(define irat-g-sum-residue-cofactors
+  _ [] -> []
+  Dv [[R A] | Ps] -> (vec-add (vec-scale A (irat-g-cofactor Dv R))
+                              (irat-g-sum-residue-cofactors Dv Ps)))
+
+\\ D / (x - r), exact (remainder is zero since r is a root). We just take the Q.
+(define irat-g-cofactor
+  Dv R -> (hd (uni-divmod Dv [(num-mul [int -1] R) [int 1]])))
+
+(define irat-g-quad-divide
+  V Nv Dv PolyPart Res Dlin Dq [BC Rem]
+    -> (if (zero-vec? Rem)
+           (irat-g-quad-emit V Nv Dv PolyPart Res Dq (trim-coeffs BC))
+           [none]))
+
+(define irat-g-quad-emit
+  V Nv Dv PolyPart Res Dq BC
+    -> (irat-g-quad-arctan V Nv Dv PolyPart Res Dq BC
+         (irat-arctan (coeffs->expr V Dq) V (irat-nth Dq 2) (irat-nth Dq 1) (irat-nth Dq 0) BC)))
+
+(define irat-g-quad-arctan
+  V Nv Dv PolyPart Res Dq BC [some QInt]
+    -> (let LogPart (irat-g-logterms V Res)
+            Cand (irat-g-plus2 PolyPart (irat-g-plus2 LogPart QInt))
+            (irat-g-verify V Nv Dv PolyPart Res [some [BC Dq]] Cand)
+        )
+  V Nv Dv PolyPart Res Dq BC _ -> [none])
+
+\\ ============================================================================
+\\ Un-foolable verification: recombine ALL rational pieces over the common
+\\ denominator D and check the numerator equals N.
+\\   each root piece  A_r/(x - r)   contributes  A_r * (D / (x - r))
+\\   the quad piece    (Bx+C)/Dq     contributes  (Bx+C) * (D / Dq) = (Bx+C)*Dlin
+\\ Sum these and compare elementwise to N. PolyPart is NOT a rational piece (it
+\\ came from the exact polynomial quotient) so it is excluded from this check;
+\\ Nv here is already the proper-part numerator (remainder of the long division).
+\\ ============================================================================
+(define irat-g-verify
+  V Nv Dv PolyPart Res QuadPiece Cand
+    -> (let RootContrib (irat-g-sum-residue-cofactors Dv Res)
+            Total (irat-g-add-quad-contrib Dv RootContrib QuadPiece)
+            (if (irat-vec-eq? (trim-coeffs Total) (trim-coeffs Nv))
+                [some (normal-form Cand)]
+                [none])))
+
+(define irat-g-add-quad-contrib
+  Dv RootContrib [none] -> RootContrib
+  Dv RootContrib [some [BC Dq]] -> (vec-add RootContrib (vec-mul BC (irat-g-cofactor-by Dv Dq))))
+
+\\ D / Dq (exact; remainder zero by construction).
+(define irat-g-cofactor-by
+  Dv Dq -> (hd (uni-divmod Dv Dq)))
 
 \\ Wired antiderivative table for forms a positional AC rule cannot match because
 \\ of the orderless canonical ordering of the inner Plus. Detection via expr->coeffs
@@ -337,9 +715,11 @@
   _ _ -> [none])
 
 (define lusub-by-name
-  "Sin" Arg V -> (lusub-emit "Sin" Arg V)
-  "Cos" Arg V -> (lusub-emit "Cos" Arg V)
-  "Exp" Arg V -> (lusub-emit "Exp" Arg V)
+  "Sin"  Arg V -> (lusub-emit "Sin" Arg V)
+  "Cos"  Arg V -> (lusub-emit "Cos" Arg V)
+  "Exp"  Arg V -> (lusub-emit "Exp" Arg V)
+  "Sinh" Arg V -> (lusub-emit "Sinh" Arg V)
+  "Cosh" Arg V -> (lusub-emit "Cosh" Arg V)
   _ _ _ -> [none])
 
 (define lusub-emit
@@ -353,9 +733,11 @@
 
 \\ (1/a) * G[arg], G the bare antiderivative: Sin->-Cos, Cos->Sin, Exp->Exp.
 (define lusub-form
-  "Sin" Arg A -> [(ct-times) [int -1] [(ct-power) A [int -1]] [[sym (protect Cos)] Arg]]
-  "Cos" Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Sin)] Arg]]
-  "Exp" Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Exp)] Arg]])
+  "Sin"  Arg A -> [(ct-times) [int -1] [(ct-power) A [int -1]] [[sym (protect Cos)] Arg]]
+  "Cos"  Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Sin)] Arg]]
+  "Exp"  Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Exp)] Arg]]
+  "Sinh" Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Cosh)] Arg]]
+  "Cosh" Arg A -> [(ct-times) [(ct-power) A [int -1]] [[sym (protect Sinh)] Arg]])
 
 \\ constant-factor pull-out: partition a Times integrand into the product of
 \\ x-free factors (Const) and the x-dependent rest (Rest). Fires only when there

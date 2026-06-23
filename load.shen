@@ -20,6 +20,10 @@
 \\ SCUD 18c: wired predicates (SameQ/UnsameQ/FreeQ/NumberQ) must load before
 \\ core so core's try-builtin hook can call calc-builtin.
 (load "src/calc-helpers.shen")
+\\ Elementary & number-theory function layer (Abs/Sign/Floor/.../GCD/Factorial/...).
+\\ calc-by-name (calc-helpers) dispatches here at reduce time; defs only need to be
+\\ present before core loads, so load order after calc-helpers + num suffices.
+(load "src/numfun.shen")
 \\ SCUD 17 Wave B: polynomial normal form (Expand/PolynomialQ); needs num + store
 \\ + calc-helpers' free-of?. calc-by-name only CALLS poly-expand/polynomial-q? at
 \\ runtime, so load order after calc-helpers (defs live by reduce time) suffices.
@@ -58,6 +62,12 @@
 (load "test/test-polyalg.shen")   \\ SCUD 18 Wave C: defines run-polyalg-tests
 (load "test/test-solve.shen")     \\ SCUD 19 Wave D: defines run-solve-tests
 (load "test/test-series.shen")    \\ SCUD 20 Wave E: defines run-series-tests
+(load "test/test-numfun.shen")    \\ elementary & number-theory fns: defines run-numfun-tests
+(load "test/test-elemlib.shen")   \\ recip-trig/hyperbolic/inverse-hyperbolic: defines run-elemlib-tests
+(load "test/test-numtheory.shen") \\ number theory: defines run-numtheory-tests
+(load "test/test-ratint.shen")    \\ rational-function integration: defines run-ratint-tests
+(load "test/test-pfrac.shen")     \\ partial-fraction integration (cubics): defines run-pfrac-tests
+(load "test/test-trigint.shen")   \\ trigonometric integration: defines run-trigint-tests
 (load "test/test-properties.shen") \\ Property-style checks beyond exact goldens
 (load "test/test-multipoly.shen") \\ Wave 4: multivariate Simplify/Together/Cancel + skew oracle
 (load "test/test-external-corpus.shen")  \\ Rubi/SymPy corpus: defines run-external-corpus-tests
