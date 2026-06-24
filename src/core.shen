@@ -241,7 +241,7 @@
 (define normal-form-db
   Db E -> (let CH (content-hash E)
                BH (db-basis Db)
-               K (nf-cache-key CH BH)
+               K (nf-cache-key CH BH E)
                Hit (nf-lookup K)
                (if (assoc-hit? Hit)
                    (hd (tl Hit))
