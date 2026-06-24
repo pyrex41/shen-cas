@@ -172,8 +172,16 @@
 \\ --- normal-form memo: content-hash + basis keyed (SCUD 10.2) ---
 (set *normal-form-cache* [])
 
+\\ Key = [content-hash basis canonical-expr]. The hash+basis are a cheap
+\\ fast-fail prefix for `assoc`; the canonical expr is what makes a hit SOUND.
+\\ The content hash (shen.prodbutzero, base kernel) collides for distinct long
+\\ content strings, so a hash-only key let one term's cached normal form be
+\\ returned for a colliding-but-different term -- order/boot dependent wrong
+\\ answers (shen-rust issue #8). Carrying the canonical expr means `=` rejects a
+\\ collision structurally; equal-canonical-form terms (same NF) still share an
+\\ entry, so memo effectiveness is preserved.
 (define nf-cache-key
-  CH BH -> [(unwrap-ch CH) BH])
+  CH BH E -> [(unwrap-ch CH) BH (alpha-canonicalize E)])
 
 (define nf-lookup
   Key -> (assoc Key (value *normal-form-cache*)))
