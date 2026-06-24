@@ -6,6 +6,6 @@
     "suite": "node --stack-size=60000 shenscript-run.js"
   },
   "dependencies": {
-    "shen-script": "^0.17"
+    "shen-script": "^0.17.0"
   }
 }
