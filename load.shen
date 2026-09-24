@@ -10,6 +10,7 @@
 (load "src/rule.shen")
 (load "src/attrs.shen")
 (load "src/query.shen")
+(load "src/logic-table.shen")  \\ finite positive tabled relations over CAS terms
 (load "src/warn.shen")
 \\ Matcher override order is load-order significant; LAST definition of
 \\ match-compound / match-arg-list wins: match (first-order) -> match-seq (sequences)
@@ -71,4 +72,5 @@
 (load "test/test-properties.shen") \\ Property-style checks beyond exact goldens
 (load "test/test-multipoly.shen") \\ Wave 4: multivariate Simplify/Together/Cancel + skew oracle
 (load "test/test-external-corpus.shen")  \\ Rubi/SymPy corpus: defines run-external-corpus-tests
+(load "test/test-logic-table.shen")
 (load "test/test.shen")
