@@ -27,6 +27,11 @@ limits, focused test command, and the planned compiler boundary. This module is
 an experimental substrate for a separate compiler/runtime project, not a
 replacement for Shen Prolog.
 
+The first [Bend 2 offload experiment](experiments/bend2/README.md) translates
+closed integer `Plus` trees, checks the generated program, and compares its
+answer with the Shen evaluator. It records conversion and startup costs and
+does not claim a performance win.
+
 ## Quick Start (once built)
 
 ```shen
