@@ -17,6 +17,16 @@ Core value: move common CAS rule bugs (malformed patterns, unbound RHS, bad attr
 
 Pure-Shen reference evaluator is the specification.
 
+## Tabled logic experiment
+
+`src/logic-table.shen` adds a separate finite, positive relation engine over the
+CAS expression representation. It computes and deduplicates answers to a fixed
+point, including left-recursive rules, without changing the ordered CAS evaluator.
+See [the compiler/runtime slice](notes/compiler-runtime-slice.md) for its syntax,
+limits, focused test command, and the planned compiler boundary. This module is
+an experimental substrate for a separate compiler/runtime project, not a
+replacement for Shen Prolog.
+
 ## Quick Start (once built)
 
 ```shen

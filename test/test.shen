@@ -1089,7 +1089,7 @@
 
 (define run-all-tests
   -> (let Ign (output "=== shen-cas test harness ===~%")
-            Ok (and (run-golden) (run-rejection-tests) (attrs-demo) (run-lfp-tests)
+            Ok (and (run-logic-table-tests) (run-golden) (run-rejection-tests) (attrs-demo) (run-lfp-tests)
                     (run-analysis-tests) (run-phase1-skeleton) (test-scope-block-fork)
                     (test-backend-seam) (test-correctness-gate) (test-eval-evaluator-wave1)
                     (test-matcher-stress) (test-simplify) (test-differentiation) (test-integration)
