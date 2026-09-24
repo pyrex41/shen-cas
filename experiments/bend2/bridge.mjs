@@ -12,8 +12,8 @@ import { performance } from 'node:perf_hooks';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const [bun, bend, depthRaw = '4'] = process.argv.slice(2);
 const depth = Number(depthRaw);
-if (!bun || !bend || !Number.isInteger(depth) || depth < 0 || depth > 7) {
-  console.error('usage: node bridge.mjs /path/to/bun /path/to/bend2/main.ts [depth 0..7]');
+if (!bun || !bend || !Number.isInteger(depth) || depth < 0 || depth > 14) {
+  console.error('usage: node bridge.mjs /path/to/bun /path/to/bend2/main.ts [depth 0..14]');
   process.exit(2);
 }
 
@@ -54,11 +54,16 @@ try {
   const output = path.join(scratch, 'case.js');
   fs.writeFileSync(source, template.replace(marker, `eval(${bendExpr(expr)})`));
   const conversionMs = Math.round(performance.now() - conversionBegin);
+  const bendSourceBytes = fs.statSync(source).size;
+  console.error(`depth ${depth}: Bend source ${bendSourceBytes} bytes`);
 
   const checked = run('Bend check', bun, [bend, source, '--check-only']);
+  console.error(`Bend check: ${checked.ms} ms`);
   if (!checked.output.includes('All terms check.')) throw new Error('Bend did not confirm checking');
   const emitted = run('Bend compile to JS', bun, [bend, source, '-o', output]);
+  console.error(`Bend emit: ${emitted.ms} ms`);
   const executed = run('Bend generated JS', process.execPath, [output]);
+  console.error(`Bend run: ${executed.ms} ms`);
   const bendValue = Number(executed.output.trim());
 
   // Use the source loader's module list, excluding its test harness. Measure
@@ -76,6 +81,7 @@ try {
   const referenceForm = `(load "${referenceSource}")`;
   const reference = run('ShenScript reference', process.execPath,
     ['--stack-size=60000', 'scripts/shenscript-run.js', referenceForm]);
+  console.error(`CAS load and eval: ${reference.ms} ms`);
   const match = reference.output.match(/EXPERIMENT_RESULT=\[int (\d+)\]/);
   if (!match) throw new Error('CAS produced no integer result');
   const hot = reference.output.match(/EXPERIMENT_EVAL_SECONDS=([\d.]+)/);
@@ -85,6 +91,8 @@ try {
 
   const result = {
     fragment: 'closed positive integer Plus tree', depth, nodes: 2 ** (depth + 1) - 1,
+    bendSourceBytes, bendGeneratedJSBytes: fs.statSync(output).size,
+    shenSourceBytes: fs.statSync(referenceSource).size,
     casValue, bendValue, equal: true,
     milliseconds: {
       bridgeGenerate: conversionMs, bendCheck: checked.ms, bendEmitJS: emitted.ms, bendRunJS: executed.ms,
@@ -92,9 +100,13 @@ try {
       casColdLoadAndEval: reference.ms,
       casEvalAfterLoad: Math.round(Number(hot[1]) * 1000),
     },
-    caveat: 'CAS in-process evaluation and Bend generated JS startup measure different boundaries; these timings do not establish a speedup.',
+    caveat: 'CAS in-process general rewriting and Bend specialized compiled JS measure different boundaries; results apply only to this closed addition fragment.',
   };
   console.log(JSON.stringify(result, null, 2));
 } finally {
-  fs.rmSync(scratch, { recursive: true, force: true });
+  if (process.env.BEND_EXPERIMENT_KEEP === '1') {
+    console.error(`kept generated files: ${scratch}`);
+  } else {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
 }
